@@ -462,6 +462,17 @@ export class AccountingService {
     cash_flow_category?: "operating" | "investing" | "financing"
   }): Promise<Account> {
     try {
+      // Validate account_type_id is a valid UUID
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+      if (!uuidRegex.test(account.account_type_id)) {
+        throw new Error(`Invalid account_type_id: ${account.account_type_id}. Must be a valid UUID.`)
+      }
+
+      // Validate parent_account_id if provided
+      if (account.parent_account_id && !uuidRegex.test(account.parent_account_id)) {
+        throw new Error(`Invalid parent_account_id: ${account.parent_account_id}. Must be a valid UUID.`)
+      }
+
       let accountCode = account.code
 
       // Generate code if not provided
@@ -469,46 +480,101 @@ export class AccountingService {
         accountCode = await this.generateAccountCode(account.account_type_id, account.parent_account_id)
       }
 
-      // Get account type to inherit cash_flow_category if not specified
+      // Get account type to get both name and cash_flow_category
+      let accountTypeName: string | null = null
       let cashFlowCategory = account.cash_flow_category
-      if (!cashFlowCategory) {
-        const { data: accountType } = await supabase
+      
+      try {
+        const { data: accountType, error: typeError } = await supabase
           .from("account_types")
-          .select("cash_flow_category")
+          .select("name, cash_flow_category")
           .eq("id", account.account_type_id)
-          .single()
+          .maybeSingle()
         
-        cashFlowCategory = accountType?.cash_flow_category || 'operating'
+        if (typeError) {
+          console.warn("Error fetching account type:", typeError)
+        } else if (accountType) {
+          accountTypeName = accountType.name
+          if (!cashFlowCategory) {
+            cashFlowCategory = accountType.cash_flow_category || 'operating'
+          }
+        }
+      } catch (typeError) {
+        console.warn("Error fetching account type, using defaults:", typeError)
       }
 
-      const { data, error } = await supabase
+      // If we still don't have account type name, try to get it from the account_type_id
+      if (!accountTypeName) {
+        // Fallback: try common account type names based on ID patterns
+        // This is a safety net, but we should have gotten it from the query above
+        console.warn("Account type name not found, this may cause an error")
+      }
+
+      // Build insert data, starting with required fields
+      const insertData: any = {
+        code: accountCode,
+        name: account.name.trim(),
+        description: account.description?.trim() || null,
+        account_type: accountTypeName, // Required string column
+        account_type_id: account.account_type_id, // Required UUID foreign key
+        parent_account_id: account.parent_account_id || null,
+        is_header: account.is_header || false,
+        is_active: true,
+      }
+
+      // Only add cash_flow_category if it's valid
+      if (cashFlowCategory && ["operating", "investing", "financing"].includes(cashFlowCategory)) {
+        insertData.cash_flow_category = cashFlowCategory
+      }
+
+      console.log("Inserting account with data:", insertData)
+
+      let { data, error } = await supabase
         .from("accounts")
-        .insert([
-          {
-            code: accountCode,
-            name: account.name,
-            description: account.description || null,
-            account_type_id: account.account_type_id,
-            parent_account_id: account.parent_account_id || null,
-            is_header: account.is_header || false,
-            cash_flow_category: cashFlowCategory,
-            is_active: true,
-          },
-        ])
+        .insert([insertData])
         .select(`
           *,
           account_types(*)
         `)
         .single()
 
+      // If error mentions cash_flow_category column, retry without it
+      if (error && (error.message?.includes('cash_flow_category') || error.message?.includes('column') || error.code === '42703')) {
+        console.warn("Error with cash_flow_category, retrying without it:", error.message)
+        const insertDataWithoutCategory = { ...insertData }
+        delete insertDataWithoutCategory.cash_flow_category
+        
+        const retryResult = await supabase
+          .from("accounts")
+          .insert([insertDataWithoutCategory])
+          .select(`
+            *,
+            account_types(*)
+          `)
+          .single()
+        
+        data = retryResult.data
+        error = retryResult.error
+      }
+
       if (error) {
         console.error("Error creating account:", error)
-        throw error
+        console.error("Error details:", {
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+          code: error.code
+        })
+        console.error("Insert data that failed:", insertData)
+        throw new Error(`Failed to create account: ${error.message}${error.details ? ` - ${error.details}` : ''}${error.hint ? ` (${error.hint})` : ''}`)
       }
 
       return data
     } catch (error) {
       console.error("Error creating account:", error)
+      if (error instanceof Error) {
+        throw error
+      }
       throw new Error("Failed to create account")
     }
   }

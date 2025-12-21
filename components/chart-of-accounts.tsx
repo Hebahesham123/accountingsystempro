@@ -35,7 +35,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Switch } from "@/components/ui/switch"
 import { type Account, type AccountType, AccountingService } from "@/lib/accounting-utils"
 import { useToast } from "@/hooks/use-toast"
-import { getCurrentUser, canEdit } from "@/lib/auth-utils"
+import { getCurrentUser, canEdit, isAdmin } from "@/lib/auth-utils"
 
 export default function ChartOfAccounts() {
   const [accounts, setAccounts] = useState<Account[]>([])
@@ -145,6 +145,29 @@ export default function ChartOfAccounts() {
       return
     }
 
+    // Validate account_type_id is a valid UUID, not a string name
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    let validAccountTypeId = accountFormData.account_type_id
+    
+    if (!uuidRegex.test(validAccountTypeId)) {
+      // Try to find the account type by name
+      const foundType = accountTypes.find(t => 
+        t.name.toLowerCase() === validAccountTypeId.toLowerCase() ||
+        t.id === validAccountTypeId
+      )
+      
+      if (!foundType) {
+        toast({
+          title: "Invalid Account Type",
+          description: "Please select a valid account type from the dropdown",
+          variant: "destructive",
+        })
+        return
+      }
+      
+      validAccountTypeId = foundType.id
+    }
+
     try {
       setSaving(true)
 
@@ -154,7 +177,7 @@ export default function ChartOfAccounts() {
           code: accountFormData.code.trim() || undefined,
           name: accountFormData.name.trim(),
           description: accountFormData.description.trim() || undefined,
-          account_type_id: accountFormData.account_type_id,
+          account_type_id: validAccountTypeId,
           parent_account_id: accountFormData.parent_account_id === "none" ? undefined : accountFormData.parent_account_id,
           is_header: accountFormData.is_header,
         }
@@ -179,12 +202,13 @@ export default function ChartOfAccounts() {
           code: accountFormData.code.trim() || undefined,
           name: accountFormData.name.trim(),
           description: accountFormData.description.trim() || undefined,
-          account_type_id: accountFormData.account_type_id,
+          account_type_id: validAccountTypeId,
           parent_account_id: accountFormData.parent_account_id === "none" ? undefined : accountFormData.parent_account_id,
           is_header: accountFormData.is_header,
           cash_flow_category: accountFormData.cash_flow_category,
         }
         
+        console.log("Creating account with data:", accountData)
         await AccountingService.createAccount(accountData)
 
         toast({
@@ -197,9 +221,12 @@ export default function ChartOfAccounts() {
       resetAccountForm()
       loadData()
     } catch (error) {
+      console.error("Error in handleAccountSubmit:", error)
+      const errorMessage = error instanceof Error ? error.message : "Failed to save account"
+      console.error("Full error object:", error)
       toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to save account",
+        title: "Error Creating Account",
+        description: errorMessage + ". Please check the browser console for details.",
         variant: "destructive",
       })
     } finally {
@@ -447,19 +474,26 @@ export default function ChartOfAccounts() {
           </div>
 
           <div className="flex gap-1">
-            {canEdit(getCurrentUser()) && (
+            {isAdmin(getCurrentUser()) && (
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => {
                   setEditingAccount(null)
+                  // Ensure we use the actual account_type_id UUID, not the string name
+                  const accountTypeId = account.account_type_id || 
+                    (account.account_types?.id) ||
+                    accountTypes.find(t => t.name === account.account_type)?.id ||
+                    ""
+                  
                   setAccountFormData({
                     code: "",
                     name: "",
                     description: "",
-                    account_type_id: account.account_type_id || account.account_type.toLowerCase(),
+                    account_type_id: accountTypeId,
                     parent_account_id: account.id,
                     is_header: false,
+                    cash_flow_category: account.cash_flow_category || "operating",
                   })
                   setIsAccountDialogOpen(true)
                 }}
@@ -469,18 +503,24 @@ export default function ChartOfAccounts() {
                 Add Sub
               </Button>
             )}
-            {canEdit(getCurrentUser()) && (
+            {isAdmin(getCurrentUser()) && (
               <>
                 <Button
                   variant="ghost"
                   size="sm"
                   onClick={() => {
                     setEditingAccount(account)
+                    // Ensure we use the actual account_type_id UUID, not the string name
+                    const accountTypeId = account.account_type_id || 
+                      (account.account_types?.id) ||
+                      accountTypes.find(t => t.name === account.account_type)?.id ||
+                      ""
+                    
                     setAccountFormData({
                       code: account.code,
                       name: account.name,
                       description: account.description || "",
-                      account_type_id: account.account_type_id || account.account_type.toLowerCase(),
+                      account_type_id: accountTypeId,
                       parent_account_id: account.parent_account_id || "none",
                       is_header: account.is_header || false,
                       cash_flow_category: account.cash_flow_category || "operating",
@@ -569,7 +609,7 @@ export default function ChartOfAccounts() {
                 </div>
                 <Dialog open={isAccountDialogOpen} onOpenChange={setIsAccountDialogOpen}>
                   <DialogTrigger asChild>
-                    {canEdit(getCurrentUser()) && (
+                    {isAdmin(getCurrentUser()) && (
                       <Button onClick={resetAccountForm}>
                         <Plus className="h-4 w-4 mr-2" />
                         Add Account
@@ -755,7 +795,7 @@ export default function ChartOfAccounts() {
                 </div>
                 <Dialog open={isAccountTypeDialogOpen} onOpenChange={setIsAccountTypeDialogOpen}>
                   <DialogTrigger asChild>
-                    {canEdit(getCurrentUser()) && (
+                    {isAdmin(getCurrentUser()) && (
                       <Button onClick={resetAccountTypeForm}>
                         <Plus className="h-4 w-4 mr-2" />
                         Add Account Type
@@ -874,7 +914,7 @@ export default function ChartOfAccounts() {
                       {type.description && <p className="text-sm text-muted-foreground">{type.description}</p>}
                     </div>
                     <div className="flex gap-2 mt-3">
-                      {canEdit(getCurrentUser()) && (
+                      {isAdmin(getCurrentUser()) && (
                         <>
                           <Button
                             variant="ghost"
