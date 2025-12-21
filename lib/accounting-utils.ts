@@ -300,23 +300,84 @@ export class AccountingService {
   // Get chart of accounts with hierarchy
   static async getChartOfAccounts(): Promise<Account[]> {
     try {
-      const { data, error } = await supabase
+      console.log("Fetching chart of accounts from Supabase...")
+      
+      // Try simplified query first (without join) to see if that's faster
+      // Use a timeout wrapper
+      const queryPromise = supabase
         .from("accounts")
-        .select(`
-          *,
-          account_types(*)
-        `)
+        .select("*")
         .eq("is_active", true)
         .order("code")
+        .limit(1000) // Add limit to prevent huge queries
 
-      if (error) {
-        console.error("Error fetching chart of accounts:", error)
-        throw error
+      const timeoutPromise = new Promise<never>((_, reject) => 
+        setTimeout(() => reject(new Error("Query timeout after 10 seconds")), 10000)
+      )
+
+      const { data: accountsData, error: accountsError } = await Promise.race([
+        queryPromise,
+        timeoutPromise
+      ]) as any
+
+      if (accountsError) {
+        console.error("Error fetching accounts:", accountsError)
+        console.error("Error details:", {
+          message: accountsError.message,
+          details: accountsError.details,
+          hint: accountsError.hint,
+          code: accountsError.code
+        })
+        throw new Error(`Failed to fetch accounts: ${accountsError.message}`)
       }
 
-      return data || []
+      if (!accountsData || accountsData.length === 0) {
+        console.warn("No accounts found in database")
+        return []
+      }
+
+      console.log(`Fetched ${accountsData.length} accounts, now fetching account types...`)
+
+      // Get account types separately to avoid join issues
+      const accountTypeIds = [...new Set(accountsData.map((acc: any) => acc.account_type_id).filter(Boolean))]
+      
+      let accountTypesMap = new Map()
+      if (accountTypeIds.length > 0 && accountTypeIds.length < 100) { // Only fetch if reasonable number
+        try {
+          console.log(`Fetching ${accountTypeIds.length} account types...`)
+          const { data: typesData, error: typesError } = await supabase
+            .from("account_types")
+            .select("*")
+            .in("id", accountTypeIds)
+
+          if (!typesError && typesData) {
+            accountTypesMap = new Map(typesData.map((type: any) => [type.id, type]))
+            console.log(`Fetched ${typesData.length} account types`)
+          } else if (typesError) {
+            console.warn("Error fetching account types (continuing without types):", typesError)
+            // Continue without types - accounts will work without them
+          }
+        } catch (typesError) {
+          console.warn("Error fetching account types (continuing without types):", typesError)
+          // Continue without types - accounts will work without them
+        }
+      } else if (accountTypeIds.length >= 100) {
+        console.warn("Too many account type IDs, skipping type fetch to avoid timeout")
+      }
+
+      // Combine accounts with their types
+      const accountsWithTypes = accountsData.map((account: any) => ({
+        ...account,
+        account_types: account.account_type_id ? accountTypesMap.get(account.account_type_id) : null
+      }))
+
+      console.log(`Successfully fetched ${accountsWithTypes.length} accounts with types`)
+      return accountsWithTypes
     } catch (error) {
       console.error("Error loading chart of accounts:", error)
+      if (error instanceof Error) {
+        throw error
+      }
       throw new Error("Failed to load chart of accounts")
     }
   }
@@ -1104,8 +1165,13 @@ export class AccountingService {
     searchTerm?: string
   }): Promise<any[]> {
     try {
-      // First, create missing journal entry lines
-      await this.createMissingJournalEntryLines()
+      // First, create missing journal entry lines (but don't fail if this errors)
+      try {
+        await this.createMissingJournalEntryLines()
+      } catch (createLinesError) {
+        console.warn("Warning: Could not create missing journal entry lines:", createLinesError)
+        // Continue anyway - this is not critical
+      }
 
       // Then get the journal entries with basic info and user info
       let query = supabase
@@ -1123,14 +1189,30 @@ export class AccountingService {
         query = query.lte("entry_date", filters.endDate)
       }
 
+      console.log("Fetching journal entries with query filters:", {
+        startDate: filters?.startDate,
+        endDate: filters?.endDate,
+        accountType: filters?.accountType,
+        searchTerm: filters?.searchTerm
+      })
+
       const { data: entries, error: entriesError } = await query
 
       if (entriesError) {
         console.error("Error fetching journal entries:", entriesError)
-        throw entriesError
+        console.error("Error details:", {
+          message: entriesError.message,
+          details: entriesError.details,
+          hint: entriesError.hint,
+          code: entriesError.code
+        })
+        throw new Error(`Failed to fetch journal entries: ${entriesError.message}`)
       }
 
+      console.log(`Successfully fetched ${entries?.length || 0} journal entries`)
+
       if (!entries || entries.length === 0) {
+        console.log("No journal entries found matching the criteria")
         return []
       }
 
@@ -1281,11 +1363,15 @@ export class AccountingService {
       const lastNumber = data?.[0]?.entry_number
       if (!lastNumber) {
         // Check if JE-001 already exists
-        const { data: existingJE001 } = await supabase
+        const { data: existingJE001, error: je001Error } = await supabase
           .from("journal_entries")
           .select("entry_number")
           .eq("entry_number", "JE-001")
-          .single()
+          .maybeSingle()
+        
+        if (je001Error) {
+          console.warn("Error checking for JE-001:", je001Error)
+        }
         
         if (existingJE001) {
           // JE-001 exists, start from JE-002
@@ -1300,11 +1386,17 @@ export class AccountingService {
         const nextEntryNumber = `JE-${nextNumber.toString().padStart(3, "0")}`
         
         // Check if this number already exists (in case of concurrent creation)
-        const { data: existingEntry } = await supabase
+        const { data: existingEntry, error: existingError } = await supabase
           .from("journal_entries")
           .select("entry_number")
           .eq("entry_number", nextEntryNumber)
-          .single()
+          .maybeSingle()
+        
+        if (existingError) {
+          console.warn("Error checking for existing entry number:", existingError)
+          // If there's an error, just return the next number anyway
+          return nextEntryNumber
+        }
         
         if (existingEntry) {
           // Number exists, generate a unique one based on timestamp
@@ -2558,17 +2650,35 @@ export class AccountingService {
       if (accountsError) throw accountsError
 
       // Get all journal entry lines with their dates
-      const { data: allTransactions, error: transError } = await supabase
-        .from("journal_entry_lines")
-        .select(`
-          account_id,
-          debit_amount,
-          credit_amount,
-          journal_entries!inner(entry_date)
-        `)
-        .lte("journal_entries.entry_date", currentDate)
+      // First get journal entry IDs within date range
+      const { data: journalEntryIds, error: jeError } = await supabase
+        .from("journal_entries")
+        .select("id")
+        .lte("entry_date", currentDate)
 
-      if (transError) throw transError
+      if (jeError) {
+        console.error("Error fetching journal entries for balance calculation:", jeError)
+        throw jeError
+      }
+
+      const entryIds = journalEntryIds?.map(je => je.id) || []
+      
+      // Then get journal entry lines for those entries
+      const { data: allTransactions, error: transError } = entryIds.length > 0
+        ? await supabase
+            .from("journal_entry_lines")
+            .select(`
+              account_id,
+              debit_amount,
+              credit_amount
+            `)
+            .in("journal_entry_id", entryIds)
+        : { data: [], error: null }
+
+      if (transError) {
+        console.error("Error fetching journal entry lines for balance calculation:", transError)
+        throw transError
+      }
 
       // Get all opening balances
       const { data: openingBalances, error: openingError } = await supabase

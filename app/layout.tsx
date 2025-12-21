@@ -12,7 +12,10 @@ const inter = Inter({ subsets: ["latin"] })
 export const metadata: Metadata = {
   title: "Comprehensive Accounting System",
   description: "Complete double-entry bookkeeping system with financial reporting",
-    generator: 'v0.dev'
+  generator: 'v0.dev',
+  icons: {
+    icon: '/placeholder-logo.svg',
+  }
 }
 
 export default function RootLayout({

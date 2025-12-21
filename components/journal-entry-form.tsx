@@ -67,9 +67,19 @@ export default function JournalEntryForm() {
       router.push("/journal-entries")
       return
     }
-    loadAccounts()
-    generateEntryNumber()
-  }, [currentUser, router, toast])
+    
+    // Only load once on mount
+    let isMounted = true
+    if (isMounted) {
+      loadAccounts()
+      generateEntryNumber()
+    }
+    
+    return () => {
+      isMounted = false
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []) // Empty deps - only run once on mount
 
   // Don't render form if user can't edit
   if (!canEdit(currentUser)) {
@@ -97,23 +107,45 @@ export default function JournalEntryForm() {
   const loadAccounts = async () => {
     try {
       setLoadingAccounts(true)
-      const [data, balances] = await Promise.all([
-        AccountingService.getChartOfAccounts(),
-        AccountingService.getAllAccountBalances()
-      ])
-      setAccounts(data)
-      setAccountBalances(balances)
+      console.log("Loading accounts and balances...")
       
-      // Build hierarchical structure
+      // Load accounts first (faster) with timeout
+      const accountsPromise = AccountingService.getChartOfAccounts()
+      const timeoutPromise = new Promise<never>((_, reject) => 
+        setTimeout(() => reject(new Error("Accounts loading timeout after 15 seconds. Please check your connection and try refreshing.")), 15000)
+      )
+      
+      const data = await Promise.race([accountsPromise, timeoutPromise])
+      console.log(`Loaded ${data.length} accounts`)
+      setAccounts(data)
+      
+      // Build hierarchical structure immediately so UI can render
       const hierarchical = buildAccountHierarchy(data)
       setHierarchicalAccounts(hierarchical)
+      
+      // Load balances separately (might be slower) - don't block UI
+      AccountingService.getAllAccountBalances()
+        .then(balances => {
+          console.log(`Loaded balances for ${balances.size} accounts`)
+          setAccountBalances(balances)
+        })
+        .catch(balanceError => {
+          console.error("Error loading balances (continuing without balances):", balanceError)
+          // Continue without balances - form can still work
+          setAccountBalances(new Map())
+        })
     } catch (error) {
       console.error("Error loading accounts:", error)
+      const errorMessage = error instanceof Error ? error.message : "Failed to load accounts"
+      console.error("Full error details:", error)
       toast({
-        title: "Error",
-        description: "Failed to load accounts",
+        title: "Error Loading Accounts",
+        description: errorMessage + ". Please check your browser console for details.",
         variant: "destructive",
       })
+      // Set empty arrays so form can still render (even if empty)
+      setAccounts([])
+      setHierarchicalAccounts([])
     } finally {
       setLoadingAccounts(false)
     }
@@ -544,6 +576,8 @@ export default function JournalEntryForm() {
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
           <p>Loading accounts...</p>
+          <p className="text-sm text-muted-foreground mt-2">This may take a few seconds</p>
+          <p className="text-xs text-muted-foreground mt-1">If this takes too long, check the browser console for errors</p>
         </div>
       </div>
     )

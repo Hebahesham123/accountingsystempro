@@ -132,7 +132,7 @@ export default function HomePage() {
       title: "User Management",
       description: "Manage users, roles, and permissions",
       icon: Users,
-      href: "/users",
+      href: "/user-management",
       color: "text-red-600",
     },
   ]

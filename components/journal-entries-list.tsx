@@ -44,14 +44,56 @@ export default function JournalEntriesList() {
     const yearStart = new Date(now.getFullYear(), 0, 1)
     const yearEnd = new Date(now.getFullYear(), 11, 31)
 
+    const defaultStartDate = yearStart.toISOString().split("T")[0]
+    const defaultEndDate = yearEnd.toISOString().split("T")[0]
+
     setFilters((prev) => ({
       ...prev,
-      startDate: yearStart.toISOString().split("T")[0],
-      endDate: yearEnd.toISOString().split("T")[0],
+      startDate: defaultStartDate,
+      endDate: defaultEndDate,
     }))
 
-    // Load entries immediately
-    loadEntries()
+    // Load entries with the default dates immediately
+    const loadWithDefaults = async () => {
+      try {
+        setLoading(true)
+        const filterParams = {
+          startDate: defaultStartDate,
+          endDate: defaultEndDate,
+          accountType: undefined,
+          searchTerm: undefined,
+        }
+        const data = await AccountingService.getJournalEntries(filterParams)
+        setEntries(data || [])
+
+        // Calculate statistics
+        const totalDebits = (data || []).reduce((sum, entry) => sum + (entry.total_debit || 0), 0)
+        const totalCredits = (data || []).reduce((sum, entry) => sum + (entry.total_credit || 0), 0)
+        const balancedEntries = (data || []).filter(entry => entry.is_balanced).length
+        const entriesWithLines = (data || []).filter(entry => entry.journal_entry_lines && entry.journal_entry_lines.length > 0).length
+        const entriesWithoutLines = (data || []).length - entriesWithLines
+
+        setStats({
+          totalEntries: (data || []).length,
+          totalDebits,
+          totalCredits,
+          balancedEntries,
+          entriesWithLines,
+          entriesWithoutLines
+        })
+      } catch (error) {
+        console.error("Error loading entries:", error)
+        toast({
+          title: "Error",
+          description: "Failed to load journal entries",
+          variant: "destructive",
+        })
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    loadWithDefaults()
   }, [])
 
   // Add a separate useEffect to reload when filters change
@@ -67,11 +109,12 @@ export default function JournalEntriesList() {
       setLoading(true)
       console.log("Loading entries with filters:", filters)
 
+      // If no dates are set, load all entries (no date filter)
       const filterParams = {
-        startDate: filters.startDate || undefined,
-        endDate: filters.endDate || undefined,
+        startDate: filters.startDate && filters.startDate.trim() !== "" ? filters.startDate : undefined,
+        endDate: filters.endDate && filters.endDate.trim() !== "" ? filters.endDate : undefined,
         accountType: filters.accountType === "All Types" ? undefined : filters.accountType,
-        searchTerm: filters.searchTerm || undefined,
+        searchTerm: filters.searchTerm && filters.searchTerm.trim() !== "" ? filters.searchTerm : undefined,
       }
 
       console.log("Filter params:", filterParams)
@@ -79,17 +122,17 @@ export default function JournalEntriesList() {
       console.log("Loaded entries:", data)
       console.log("Number of entries loaded:", data?.length || 0)
       
-      setEntries(data)
+      setEntries(data || [])
 
       // Calculate statistics
-      const totalDebits = data.reduce((sum, entry) => sum + (entry.total_debit || 0), 0)
-      const totalCredits = data.reduce((sum, entry) => sum + (entry.total_credit || 0), 0)
-      const balancedEntries = data.filter(entry => entry.is_balanced).length
-      const entriesWithLines = data.filter(entry => entry.journal_entry_lines && entry.journal_entry_lines.length > 0).length
-      const entriesWithoutLines = data.length - entriesWithLines
+      const totalDebits = (data || []).reduce((sum, entry) => sum + (entry.total_debit || 0), 0)
+      const totalCredits = (data || []).reduce((sum, entry) => sum + (entry.total_credit || 0), 0)
+      const balancedEntries = (data || []).filter(entry => entry.is_balanced).length
+      const entriesWithLines = (data || []).filter(entry => entry.journal_entry_lines && entry.journal_entry_lines.length > 0).length
+      const entriesWithoutLines = (data || []).length - entriesWithLines
 
       setStats({
-        totalEntries: data.length,
+        totalEntries: (data || []).length,
         totalDebits,
         totalCredits,
         balancedEntries,
@@ -100,7 +143,7 @@ export default function JournalEntriesList() {
       console.error("Error loading entries:", error)
       toast({
         title: "Error",
-        description: "Failed to load journal entries",
+        description: error instanceof Error ? error.message : "Failed to load journal entries",
         variant: "destructive",
       })
     } finally {
@@ -118,9 +161,10 @@ export default function JournalEntriesList() {
     loadEntries()
   }
 
-  // Auto-apply filters when they change
+  // Auto-apply filters when they change (but not dates, those are handled separately)
   useEffect(() => {
-    if (filters.startDate && filters.endDate) {
+    // Only reload if dates are set (to avoid loading before initial dates are set)
+    if (filters.startDate || filters.endDate || (!filters.startDate && !filters.endDate)) {
       loadEntries()
     }
   }, [filters.accountType, filters.searchTerm, filters.status])
@@ -442,7 +486,7 @@ export default function JournalEntriesList() {
               {loading ? "Loading..." : "Apply Filters"}
             </Button>
             <Button 
-              onClick={() => {
+              onClick={async () => {
                 setFilters(prev => ({
                   ...prev,
                   startDate: "",
@@ -451,6 +495,41 @@ export default function JournalEntriesList() {
                   searchTerm: "",
                   status: "All Statuses"
                 }))
+                // Load all entries without date filters
+                try {
+                  setLoading(true)
+                  const data = await AccountingService.getJournalEntries({
+                    startDate: undefined,
+                    endDate: undefined,
+                    accountType: undefined,
+                    searchTerm: undefined,
+                  })
+                  setEntries(data || [])
+                  
+                  const totalDebits = (data || []).reduce((sum, entry) => sum + (entry.total_debit || 0), 0)
+                  const totalCredits = (data || []).reduce((sum, entry) => sum + (entry.total_credit || 0), 0)
+                  const balancedEntries = (data || []).filter(entry => entry.is_balanced).length
+                  const entriesWithLines = (data || []).filter(entry => entry.journal_entry_lines && entry.journal_entry_lines.length > 0).length
+                  const entriesWithoutLines = (data || []).length - entriesWithLines
+
+                  setStats({
+                    totalEntries: (data || []).length,
+                    totalDebits,
+                    totalCredits,
+                    balancedEntries,
+                    entriesWithLines,
+                    entriesWithoutLines
+                  })
+                } catch (error) {
+                  console.error("Error loading all entries:", error)
+                  toast({
+                    title: "Error",
+                    description: "Failed to load journal entries",
+                    variant: "destructive",
+                  })
+                } finally {
+                  setLoading(false)
+                }
               }} 
               variant="outline"
               disabled={loading}
