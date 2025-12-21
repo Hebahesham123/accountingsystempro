@@ -405,23 +405,24 @@ export class AccountingService {
           .from("accounts")
           .select("code")
           .eq("id", parentAccountId)
-          .single()
+          .maybeSingle()
         
-        if (!error && parentAccount) {
+        if (!error && parentAccount && parentAccount.code) {
           baseCode = parentAccount.code
         }
       }
       
-      // Find the next available number
+      // Find the next available number - check ALL codes, not just active ones
       const { data: existingCodes, error } = await supabase
         .from("accounts")
         .select("code")
         .like("code", baseCode + "%")
-        .eq("is_active", true)
       
       if (error) {
         console.error("Error fetching existing codes:", error)
-        return baseCode + "01"
+        // Use timestamp-based fallback to ensure uniqueness
+        const timestamp = Date.now().toString().slice(-6)
+        return baseCode + timestamp
       }
       
       // Find the highest number for this base code
@@ -429,7 +430,9 @@ export class AccountingService {
       if (existingCodes && existingCodes.length > 0) {
         const numbers = existingCodes
           .map(acc => {
-            const match = acc.code.match(new RegExp(`^${baseCode}(\\d+)$`))
+            if (!acc.code) return 0
+            // Match codes that start with baseCode followed by digits
+            const match = acc.code.match(new RegExp(`^${baseCode.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(\\d+)$`))
             return match ? parseInt(match[1]) : 0
           })
           .filter(num => num > 0)
@@ -439,14 +442,47 @@ export class AccountingService {
         }
       }
       
-      // Generate new code (pad with zeros)
-      const newCode = baseCode + nextNumber.toString().padStart(2, '0')
+      // Generate new code (pad with zeros to 5 digits for better uniqueness)
+      let newCode = baseCode + nextNumber.toString().padStart(5, '0')
+      
+      // Double-check the code doesn't exist (race condition protection)
+      let attempts = 0
+      const maxAttempts = 10
+      while (attempts < maxAttempts) {
+        const { data: existing, error: checkError } = await supabase
+          .from("accounts")
+          .select("code")
+          .eq("code", newCode)
+          .maybeSingle()
+        
+        if (checkError) {
+          console.warn("Error checking code uniqueness:", checkError)
+          break
+        }
+        
+        if (!existing) {
+          // Code is available
+          break
+        }
+        
+        // Code exists, try next number
+        nextNumber++
+        newCode = baseCode + nextNumber.toString().padStart(5, '0')
+        attempts++
+      }
+      
+      // If we've tried too many times, use timestamp fallback
+      if (attempts >= maxAttempts) {
+        const timestamp = Date.now().toString().slice(-6)
+        newCode = baseCode + timestamp
+        console.warn("Used timestamp fallback for account code:", newCode)
+      }
       
       return newCode
     } catch (error) {
       console.error("Error generating account code:", error)
-      // Fallback to simple code generation
-      const timestamp = Date.now().toString().slice(-4)
+      // Fallback to timestamp-based code to ensure uniqueness
+      const timestamp = Date.now().toString().slice(-6)
       return `ACC${timestamp}`
     }
   }
