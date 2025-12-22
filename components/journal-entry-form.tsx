@@ -22,6 +22,7 @@ interface JournalLine {
   id: string
   account_id: string
   description: string
+  project_id?: string
   type: "debit" | "credit"
   amount: number
   image_data?: string
@@ -38,6 +39,7 @@ export default function JournalEntryForm() {
   const [accounts, setAccounts] = useState<Account[]>([])
   const [hierarchicalAccounts, setHierarchicalAccounts] = useState<HierarchicalAccount[]>([])
   const [accountBalances, setAccountBalances] = useState<Map<string, { ownBalance: number; totalBalance: number }>>(new Map())
+  const [projects, setProjects] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
   const [loadingAccounts, setLoadingAccounts] = useState(true)
   const [expandedAccounts, setExpandedAccounts] = useState<Set<string>>(new Set())
@@ -52,8 +54,8 @@ export default function JournalEntryForm() {
   const [entryNumber, setEntryNumber] = useState<string>("")
 
   const [lines, setLines] = useState<JournalLine[]>([
-    { id: "1", account_id: "", description: "", type: "debit", amount: 0 },
-    { id: "2", account_id: "", description: "", type: "credit", amount: 0 },
+    { id: "1", account_id: "", description: "", project_id: "", type: "debit", amount: 0 },
+    { id: "2", account_id: "", description: "", project_id: "", type: "credit", amount: 0 },
   ])
 
   // Check permissions on mount
@@ -72,6 +74,7 @@ export default function JournalEntryForm() {
     let isMounted = true
     if (isMounted) {
       loadAccounts()
+      loadProjects()
       generateEntryNumber()
     }
     
@@ -148,6 +151,17 @@ export default function JournalEntryForm() {
       setHierarchicalAccounts([])
     } finally {
       setLoadingAccounts(false)
+    }
+  }
+
+  const loadProjects = async () => {
+    try {
+      const data = await AccountingService.getProjects()
+      setProjects(data)
+    } catch (error) {
+      console.error("Error loading projects:", error)
+      // Continue without projects - form can still work
+      setProjects([])
     }
   }
 
@@ -390,6 +404,7 @@ export default function JournalEntryForm() {
       id: Date.now().toString(),
       account_id: "",
       description: "",
+      project_id: "",
       type: "debit",
       amount: 0,
     }
@@ -411,7 +426,10 @@ export default function JournalEntryForm() {
   }
 
   const isBalanced = () => {
-    return Math.abs(getTotalDebits() - getTotalCredits()) < 0.01
+    // Round totals to 2 decimal places before comparing to avoid floating point precision issues
+    const totalDebits = Math.round(getTotalDebits() * 100) / 100
+    const totalCredits = Math.round(getTotalCredits() * 100) / 100
+    return Math.abs(totalDebits - totalCredits) < 0.01
   }
 
   const resetForm = () => {
@@ -420,8 +438,8 @@ export default function JournalEntryForm() {
       description: "",
     })
     setLines([
-      { id: "1", account_id: "", description: "", type: "debit", amount: 0 },
-      { id: "2", account_id: "", description: "", type: "credit", amount: 0 },
+      { id: "1", account_id: "", description: "", project_id: "", type: "debit", amount: 0 },
+      { id: "2", account_id: "", description: "", project_id: "", type: "credit", amount: 0 },
     ])
     generateEntryNumber() // Generate new entry number for next entry
   }
@@ -451,9 +469,12 @@ export default function JournalEntryForm() {
     }
 
     if (!isBalanced()) {
+      // Round totals for display
+      const totalDebits = Math.round(getTotalDebits() * 100) / 100
+      const totalCredits = Math.round(getTotalCredits() * 100) / 100
       toast({
         title: "Entry Not Balanced",
-        description: `Total debits ($${getTotalDebits().toFixed(2)}) must equal total credits ($${getTotalCredits().toFixed(2)})`,
+        description: `Total debits ($${totalDebits.toFixed(2)}) must equal total credits ($${totalCredits.toFixed(2)})`,
         variant: "destructive",
       })
       return
@@ -463,13 +484,18 @@ export default function JournalEntryForm() {
       setLoading(true)
 
       // Convert lines to the format expected by the service
-      const entryLines = validLines.map((line) => ({
-        account_id: line.account_id,
-        description: line.description || formData.description,
-        debit_amount: line.type === "debit" ? line.amount : 0,
-        credit_amount: line.type === "credit" ? line.amount : 0,
-        image_data: line.image_data,
-      }))
+      // Round amounts to 2 decimal places to avoid floating point precision issues
+      const entryLines = validLines.map((line) => {
+        const roundedAmount = Math.round(line.amount * 100) / 100
+        return {
+          account_id: line.account_id,
+          description: line.description || formData.description,
+          project_id: line.project_id || undefined,
+          debit_amount: line.type === "debit" ? roundedAmount : 0,
+          credit_amount: line.type === "credit" ? roundedAmount : 0,
+          image_data: line.image_data,
+        }
+      })
 
       const currentUser = getCurrentUser()
       await AccountingService.createJournalEntry({
@@ -778,19 +804,50 @@ export default function JournalEntryForm() {
                             type="number"
                             step="0.01"
                             min="0"
-                            value={line.amount || ""}
-                            onChange={(e) => handleLineChange(line.id, "amount", Number.parseFloat(e.target.value) || 0)}
+                            value={line.amount ? Number(line.amount.toFixed(2)) : ""}
+                            onChange={(e) => {
+                              const inputValue = e.target.value
+                              if (inputValue === "" || inputValue === ".") {
+                                handleLineChange(line.id, "amount", 0)
+                                return
+                              }
+                              const numValue = Number.parseFloat(inputValue)
+                              if (!Number.isNaN(numValue)) {
+                                // Round to 2 decimal places to avoid floating point precision issues
+                                const rounded = Math.round(numValue * 100) / 100
+                                handleLineChange(line.id, "amount", rounded)
+                              }
+                            }}
+                            onBlur={(e) => {
+                              // Ensure value is rounded on blur
+                              const numValue = Number.parseFloat(e.target.value)
+                              if (!Number.isNaN(numValue) && numValue >= 0) {
+                                const rounded = Math.round(numValue * 100) / 100
+                                handleLineChange(line.id, "amount", rounded)
+                              }
+                            }}
                             placeholder="0.00"
                           />
                         </div>
 
                         <div className="space-y-2">
-                          <Label>Line Description</Label>
-                          <Input
-                            value={line.description}
-                            onChange={(e) => handleLineChange(line.id, "description", e.target.value)}
-                            placeholder="Optional line description"
-                          />
+                          <Label>Project</Label>
+                          <Select
+                            value={line.project_id || "none"}
+                            onValueChange={(value) => handleLineChange(line.id, "project_id", value === "none" ? "" : value)}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select project" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="none">None</SelectItem>
+                              {projects.map((project) => (
+                                <SelectItem key={project.id} value={project.id}>
+                                  {project.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
                         </div>
                       </div>
 

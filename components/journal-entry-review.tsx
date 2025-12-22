@@ -79,6 +79,7 @@ export default function JournalEntryReview({ entry, onClose }: JournalEntryRevie
   const [userDetails, setUserDetails] = useState<UserDetails | null>(null);
   const [periodDetails, setPeriodDetails] = useState<PeriodDetails | null>(null);
   const [accountBalances, setAccountBalances] = useState<Map<string, { ownBalance: number; totalBalance: number }>>(new Map());
+  const [projects, setProjects] = useState<Map<string, any>>(new Map());
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -91,10 +92,12 @@ export default function JournalEntryReview({ entry, onClose }: JournalEntryRevie
       
       // Load account details for all lines
       const accountIds = entry.journal_entry_lines?.map(line => line.account_id).filter(Boolean) || [];
+      const projectIds = entry.journal_entry_lines?.map(line => line.project_id).filter(Boolean) || [];
       console.log('Loading account details for IDs:', accountIds);
+      console.log('Loading project details for IDs:', projectIds);
       
-      // Load accounts and balances in parallel
-      const [accountsPromise, balancesPromise] = await Promise.all([
+      // Load accounts, balances, and projects in parallel
+      const [accountsPromise, balancesPromise, projectsPromise] = await Promise.all([
         accountIds.length > 0 ? supabase
           .from('accounts')
           .select(`
@@ -115,11 +118,16 @@ export default function JournalEntryReview({ entry, onClose }: JournalEntryRevie
             )
           `)
           .in('id', accountIds) : Promise.resolve({ data: [], error: null }),
-        AccountingService.getAllAccountBalances()
+        AccountingService.getAllAccountBalances(),
+        projectIds.length > 0 ? supabase
+          .from('projects')
+          .select('id, name, description')
+          .in('id', projectIds) : Promise.resolve({ data: [], error: null })
       ]);
 
       const { data: accounts, error: accountsError } = accountsPromise;
       const balances = balancesPromise;
+      const { data: projectsData } = projectsPromise;
 
       if (accountsError) {
         console.error('Error loading account details:', accountsError);
@@ -129,6 +137,12 @@ export default function JournalEntryReview({ entry, onClose }: JournalEntryRevie
       }
       
       setAccountBalances(balances);
+      
+      // Map projects
+      if (projectsData) {
+        const projectsMap = new Map(projectsData.map((p: any) => [p.id, p]));
+        setProjects(projectsMap);
+      }
 
       // Load user details
       if (entry.created_by) {
@@ -368,7 +382,7 @@ export default function JournalEntryReview({ entry, onClose }: JournalEntryRevie
                               <TableHead>Account Type</TableHead>
                               <TableHead>Cash Flow</TableHead>
                               <TableHead className="text-right">Balance</TableHead>
-                              <TableHead>Description</TableHead>
+                              <TableHead>Project</TableHead>
                               <TableHead className="text-right">Debit</TableHead>
                               <TableHead className="text-right">Credit</TableHead>
                               <TableHead>Actions</TableHead>
@@ -432,9 +446,15 @@ export default function JournalEntryReview({ entry, onClose }: JournalEntryRevie
                                   </TableCell>
                                   <TableCell>
                                     <div className="max-w-xs">
-                                      <p className="text-sm truncate">
-                                        {line.description || 'No description'}
-                                      </p>
+                                      {line.project_id && projects.get(line.project_id) ? (
+                                        <p className="text-sm font-medium text-blue-600 truncate">
+                                          {projects.get(line.project_id).name}
+                                        </p>
+                                      ) : (
+                                        <p className="text-sm text-gray-400 italic">
+                                          No project
+                                        </p>
+                                      )}
                                     </div>
                                   </TableCell>
                                   <TableCell className="text-right font-mono">

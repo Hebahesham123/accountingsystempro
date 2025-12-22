@@ -559,7 +559,8 @@ export default function JournalEntriesList() {
                   <TableHead>Entry #</TableHead>
                   <TableHead>Date</TableHead>
                   <TableHead>Description</TableHead>
-                  <TableHead>Reference</TableHead>
+                  <TableHead>Account Name</TableHead>
+                  <TableHead>Project</TableHead>
                   <TableHead>Created By</TableHead>
                   <TableHead className="text-right">Amount</TableHead>
                   <TableHead>Lines</TableHead>
@@ -570,7 +571,7 @@ export default function JournalEntriesList() {
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={9} className="text-center py-8">
+                    <TableCell colSpan={10} className="text-center py-8">
                       <div className="flex items-center justify-center">
                         <Clock className="h-4 w-4 mr-2 animate-spin" />
                         Loading entries...
@@ -579,7 +580,7 @@ export default function JournalEntriesList() {
                   </TableRow>
                 ) : entries.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={9} className="text-center py-8 text-gray-500">
+                    <TableCell colSpan={10} className="text-center py-8 text-gray-500">
                       No journal entries found matching your criteria.
                     </TableCell>
                   </TableRow>
@@ -593,8 +594,55 @@ export default function JournalEntriesList() {
                       <TableCell className="max-w-[200px] truncate">
                         {entry.description || "No description"}
                       </TableCell>
-                      <TableCell className="max-w-[150px] truncate">
-                        {entry.reference || "No reference"}
+                      <TableCell className="max-w-[200px]">
+                        {entry.journal_entry_lines && entry.journal_entry_lines.length > 0 ? (
+                          <div className="flex flex-col gap-1">
+                            {entry.journal_entry_lines.slice(0, 3).map((line: any, idx: number) => {
+                              // Handle account data - could be in accounts object or account property
+                              const account = line.accounts || line.account || null
+                              const accountName = account?.name || "Unknown Account"
+                              return (
+                                <span key={idx} className="text-sm truncate" title={accountName}>
+                                  {accountName}
+                                </span>
+                              )
+                            })}
+                            {entry.journal_entry_lines.length > 3 && (
+                              <span className="text-xs text-muted-foreground">
+                                +{entry.journal_entry_lines.length - 3} more
+                              </span>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-sm text-muted-foreground">No accounts</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="max-w-[150px]">
+                        {entry.journal_entry_lines && entry.journal_entry_lines.length > 0 ? (
+                          <div className="flex flex-col gap-1">
+                            {entry.journal_entry_lines.slice(0, 3).map((line: any, idx: number) => {
+                              // Get project name from line
+                              const project = line.projects || null
+                              const projectName = project?.name || null
+                              return projectName ? (
+                                <span key={idx} className="text-sm text-blue-600 truncate" title={projectName}>
+                                  {projectName}
+                                </span>
+                              ) : (
+                                <span key={idx} className="text-sm text-gray-400 italic">
+                                  -
+                                </span>
+                              )
+                            })}
+                            {entry.journal_entry_lines.length > 3 && (
+                              <span className="text-xs text-muted-foreground">
+                                +{entry.journal_entry_lines.length - 3} more
+                              </span>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-sm text-muted-foreground">-</span>
+                        )}
                       </TableCell>
                       <TableCell>
                         {entry.users ? (

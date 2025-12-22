@@ -20,6 +20,7 @@ type BalanceSheetAccount = {
   level?: number
   has_children?: boolean
   total_amount?: number
+  isNetIncome?: boolean
 }
 
 export default function FinancialReports() {
@@ -284,12 +285,20 @@ export default function FinancialReports() {
     rows.push(["EQUITY", "", ""])
     if (balanceSheet.equity && balanceSheet.equity.length > 0) {
       balanceSheet.equity.forEach((equity: any) => {
-        rows.push([equity.account_code || "", equity.account_name || "", formatCurrencyExport(equity.balance || 0)])
+        if (equity.isNetIncome || equity.code === "NET_INCOME") {
+          rows.push(["", "Net Income", formatCurrencyExport(equity.amount || 0)])
+        } else {
+          rows.push([equity.code || equity.account_code || "", equity.name || equity.account_name || "", formatCurrencyExport(equity.amount || equity.balance || 0)])
+        }
       })
     }
-    rows.push(["Total Equity", "", formatCurrencyExport(balanceSheet.total_equity || 0)])
+    // Add Net Income if it exists separately
+    if (balanceSheet.netIncome !== undefined && balanceSheet.netIncome !== 0) {
+      rows.push(["", "Net Income", formatCurrencyExport(Math.abs(balanceSheet.netIncome))])
+    }
+    rows.push(["Total Equity", "", formatCurrencyExport(balanceSheet.totalEquity || balanceSheet.total_equity || 0)])
     rows.push([])
-    rows.push(["Total Liabilities and Equity", "", formatCurrencyExport((balanceSheet.total_liabilities || 0) + (balanceSheet.total_equity || 0))])
+    rows.push(["Total Liabilities and Equity", "", formatCurrencyExport((balanceSheet.totalLiabilities || balanceSheet.total_liabilities || 0) + (balanceSheet.totalEquity || balanceSheet.total_equity || 0))])
 
     exportToCSVCustom(rows, "balance-sheet")
     toast({
@@ -333,12 +342,6 @@ export default function FinancialReports() {
         rows.push([item.account_code || "", item.account_name || "", formatCurrencyExport(item.amount || 0)])
       })
       rows.push(["Total COGS", "", formatCurrencyExport(incomeStatement.total_cogs || 0)])
-      rows.push([])
-    }
-
-    // Gross Profit
-    if (incomeStatement.gross_profit !== undefined) {
-      rows.push(["Gross Profit", "", formatCurrencyExport(incomeStatement.gross_profit)])
       rows.push([])
     }
 
@@ -628,12 +631,29 @@ export default function FinancialReports() {
                               {balanceSheet.equity.length > 0 ? (
                                 balanceSheet.equity
                                   .filter((equityItem: any) => {
+                                    // Include Net Income or accounts without parent
+                                    if (equityItem.isNetIncome || equityItem.code === "NET_INCOME") {
+                                      return true
+                                    }
                                     const acc = accounts.find(a => a.code === equityItem.code)
                                     return !acc?.parent_account_id
                                   })
-                                  .map((equityItem: BalanceSheetAccount) => 
-                                    renderHierarchicalAccount(equityItem, 0, expandedEquity, 'equity')
-                                  )
+                                  .map((equityItem: BalanceSheetAccount) => {
+                                    // Special rendering for Net Income
+                                    if (equityItem.isNetIncome || equityItem.code === "NET_INCOME") {
+                                      return (
+                                        <TableRow key="net-income" className="bg-blue-100">
+                                          <TableCell className="font-medium pl-4">
+                                            Net Income
+                                          </TableCell>
+                                          <TableCell className="text-right font-medium text-blue-800">
+                                            {formatCurrency(equityItem.amount)}
+                                          </TableCell>
+                                        </TableRow>
+                                      )
+                                    }
+                                    return renderHierarchicalAccount(equityItem, 0, expandedEquity, 'equity')
+                                  })
                               ) : (
                                 <TableRow>
                                   <TableCell colSpan={2} className="text-center text-muted-foreground">
@@ -806,19 +826,6 @@ export default function FinancialReports() {
                         </Table>
                       </div>
                     )}
-
-                    {/* Gross Profit */}
-                    <div className="border-2 border-blue-300 rounded-lg p-4 bg-blue-50">
-                      <div className="flex justify-between font-bold text-lg">
-                        <span>GROSS PROFIT</span>
-                        <span className="text-blue-700">
-                          {formatCurrency(incomeStatement.grossProfit || 0)}
-                        </span>
-                      </div>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        (Total Revenue - COGS)
-                      </p>
-                    </div>
 
                     {/* Operating Expenses Section */}
                     {(incomeStatement.operatingExpenses || []).length > 0 && (

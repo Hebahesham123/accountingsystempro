@@ -40,7 +40,6 @@ import { getCurrentUser, canEdit, isAdmin } from "@/lib/auth-utils"
 export default function ChartOfAccounts() {
   const [accounts, setAccounts] = useState<Account[]>([])
   const [accountTypes, setAccountTypes] = useState<AccountType[]>([])
-  const [accountBalances, setAccountBalances] = useState<Map<string, { ownBalance: number; totalBalance: number }>>(new Map())
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set())
   const [isAccountDialogOpen, setIsAccountDialogOpen] = useState(false)
   const [isAccountTypeDialogOpen, setIsAccountTypeDialogOpen] = useState(false)
@@ -57,14 +56,14 @@ export default function ChartOfAccounts() {
     account_type_id: "",
     parent_account_id: "",
     is_header: false,
-    cash_flow_category: "operating" as "operating" | "investing" | "financing",
+    cash_flow_category: "none" as "operating" | "investing" | "financing" | "none",
   })
 
   const [accountTypeFormData, setAccountTypeFormData] = useState({
     name: "",
     description: "",
     normal_balance: "debit" as "debit" | "credit",
-    cash_flow_category: "operating" as "operating" | "investing" | "financing",
+    cash_flow_category: "none" as "operating" | "investing" | "financing" | "none",
   })
 
   useEffect(() => {
@@ -74,14 +73,12 @@ export default function ChartOfAccounts() {
   const loadData = async () => {
     try {
       setLoading(true)
-      const [accountsData, accountTypesData, balancesData] = await Promise.all([
+      const [accountsData, accountTypesData] = await Promise.all([
         AccountingService.getChartOfAccounts(),
         AccountingService.getAccountTypes(),
-        AccountingService.getAllAccountBalances(),
       ])
       setAccounts(accountsData)
       setAccountTypes(accountTypesData)
-      setAccountBalances(balancesData)
     } catch (error) {
       console.error("Error loading data:", error)
       toast({
@@ -182,11 +179,15 @@ export default function ChartOfAccounts() {
           is_header: accountFormData.is_header,
         }
         
-        // Only include cash_flow_category if it's explicitly set and valid
+        // Only include cash_flow_category if it's explicitly set and valid (not "none")
         // This prevents errors if the column doesn't exist in the database
         if (accountFormData.cash_flow_category && 
+            accountFormData.cash_flow_category !== "none" &&
             ["operating", "investing", "financing"].includes(accountFormData.cash_flow_category)) {
           updateData.cash_flow_category = accountFormData.cash_flow_category
+        } else {
+          // Set to null if "none" is selected
+          updateData.cash_flow_category = null
         }
         
         console.log("Updating account with data:", updateData)
@@ -198,14 +199,20 @@ export default function ChartOfAccounts() {
         })
       } else {
         // Create new account
-        const accountData = {
+        const accountData: any = {
           code: accountFormData.code.trim() || undefined,
           name: accountFormData.name.trim(),
           description: accountFormData.description.trim() || undefined,
           account_type_id: validAccountTypeId,
           parent_account_id: accountFormData.parent_account_id === "none" ? undefined : accountFormData.parent_account_id,
           is_header: accountFormData.is_header,
-          cash_flow_category: accountFormData.cash_flow_category,
+        }
+        
+        // Only include cash_flow_category if it's not "none"
+        if (accountFormData.cash_flow_category && accountFormData.cash_flow_category !== "none") {
+          accountData.cash_flow_category = accountFormData.cash_flow_category
+        } else {
+          accountData.cash_flow_category = null
         }
         
         console.log("Creating account with data:", accountData)
@@ -290,24 +297,40 @@ export default function ChartOfAccounts() {
       setSaving(true)
 
       if (editingAccountType) {
-        await AccountingService.updateAccountType(editingAccountType.id, {
+        const accountTypeUpdateData: any = {
           name: accountTypeFormData.name.trim(),
           description: accountTypeFormData.description.trim() || undefined,
           normal_balance: accountTypeFormData.normal_balance,
-          cash_flow_category: accountTypeFormData.cash_flow_category,
-        })
+        }
+        
+        // Only include cash_flow_category if it's not "none"
+        if (accountTypeFormData.cash_flow_category && accountTypeFormData.cash_flow_category !== "none") {
+          accountTypeUpdateData.cash_flow_category = accountTypeFormData.cash_flow_category
+        } else {
+          accountTypeUpdateData.cash_flow_category = null
+        }
+        
+        await AccountingService.updateAccountType(editingAccountType.id, accountTypeUpdateData)
 
         toast({
           title: "Success",
           description: "Account type updated successfully",
         })
       } else {
-        await AccountingService.createAccountType({
+        const createData: any = {
           name: accountTypeFormData.name.trim(),
           description: accountTypeFormData.description.trim() || undefined,
           normal_balance: accountTypeFormData.normal_balance,
-          cash_flow_category: accountTypeFormData.cash_flow_category,
-        })
+        }
+        
+        // Only include cash_flow_category if it's not "none"
+        if (accountTypeFormData.cash_flow_category && accountTypeFormData.cash_flow_category !== "none") {
+          createData.cash_flow_category = accountTypeFormData.cash_flow_category
+        } else {
+          createData.cash_flow_category = null
+        }
+        
+        await AccountingService.createAccountType(createData)
 
         toast({
           title: "Success",
@@ -358,7 +381,7 @@ export default function ChartOfAccounts() {
       account_type_id: "",
       parent_account_id: "none",
       is_header: false,
-      cash_flow_category: "operating",
+      cash_flow_category: "none",
     })
     setEditingAccount(null)
   }
@@ -368,7 +391,7 @@ export default function ChartOfAccounts() {
       name: "",
       description: "",
       normal_balance: "debit",
-      cash_flow_category: "operating",
+      cash_flow_category: "none",
     })
     setEditingAccountType(null)
   }
@@ -418,13 +441,6 @@ export default function ChartOfAccounts() {
     const hasChildren = account.children && account.children.length > 0
     const isExpanded = expandedNodes.has(account.id)
     const accountTypeName = account.account_types?.name || account.account_type
-    
-    // Get balance info
-    const balanceInfo = accountBalances.get(account.id)
-    const ownBalance = balanceInfo?.ownBalance || 0
-    const totalBalance = balanceInfo?.totalBalance || 0
-    const displayBalance = hasChildren ? totalBalance : ownBalance
-    const isPositive = displayBalance >= 0
 
     return (
       <div key={account.id} className="w-full">
@@ -461,17 +477,6 @@ export default function ChartOfAccounts() {
             )}
           </div>
 
-          {/* Balance Display */}
-          <div className="flex items-center gap-2 min-w-[150px] justify-end">
-            <span className={`font-mono font-semibold ${isPositive ? 'text-green-600' : 'text-red-600'}`}>
-              {formatCurrency(displayBalance)}
-            </span>
-            {hasChildren && ownBalance !== 0 && (
-              <span className="text-xs text-gray-400" title="Own balance (excluding children)">
-                ({formatCurrency(ownBalance)})
-              </span>
-            )}
-          </div>
 
           <div className="flex gap-1">
             {isAdmin(getCurrentUser()) && (
@@ -493,7 +498,7 @@ export default function ChartOfAccounts() {
                     account_type_id: accountTypeId,
                     parent_account_id: account.id,
                     is_header: false,
-                    cash_flow_category: account.cash_flow_category || "operating",
+                    cash_flow_category: account.cash_flow_category || "none",
                   })
                   setIsAccountDialogOpen(true)
                 }}
@@ -523,7 +528,7 @@ export default function ChartOfAccounts() {
                       account_type_id: accountTypeId,
                       parent_account_id: account.parent_account_id || "none",
                       is_header: account.is_header || false,
-                      cash_flow_category: account.cash_flow_category || "operating",
+                      cash_flow_category: account.cash_flow_category || "none",
                     })
                     setIsAccountDialogOpen(true)
                   }}
@@ -746,11 +751,15 @@ export default function ChartOfAccounts() {
                             <SelectValue placeholder="Select category" />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="operating">Operating Activities (Default)</SelectItem>
+                            <SelectItem value="none">None (Not in Cash Flow)</SelectItem>
+                            <SelectItem value="operating">Operating Activities</SelectItem>
                             <SelectItem value="investing">Investing Activities</SelectItem>
                             <SelectItem value="financing">Financing Activities</SelectItem>
                           </SelectContent>
                         </Select>
+                        <p className="text-xs text-muted-foreground">
+                          Select a category to include this account in the Cash Flow Statement. Choose "None" to exclude it.
+                        </p>
                         <p className="text-xs text-muted-foreground">
                           Used for Cash Flow Statement categorization. Default is Operating.
                         </p>
@@ -865,7 +874,7 @@ export default function ChartOfAccounts() {
                         <Label htmlFor="type_cash_flow_category">Default Cash Flow Category</Label>
                         <Select
                           value={accountTypeFormData.cash_flow_category}
-                          onValueChange={(value: "operating" | "investing" | "financing") =>
+                          onValueChange={(value: "operating" | "investing" | "financing" | "none") =>
                             handleAccountTypeInputChange("cash_flow_category", value)
                           }
                         >
@@ -873,11 +882,15 @@ export default function ChartOfAccounts() {
                             <SelectValue placeholder="Select category" />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="operating">Operating Activities (Default)</SelectItem>
+                            <SelectItem value="none">None (Not in Cash Flow)</SelectItem>
+                            <SelectItem value="operating">Operating Activities</SelectItem>
                             <SelectItem value="investing">Investing Activities</SelectItem>
                             <SelectItem value="financing">Financing Activities</SelectItem>
                           </SelectContent>
                         </Select>
+                        <p className="text-xs text-muted-foreground">
+                          Default category for accounts of this type. Accounts can override this individually.
+                        </p>
                         <p className="text-xs text-muted-foreground">
                           Default cash flow category for accounts of this type. Can be overridden at account level.
                         </p>
@@ -925,7 +938,7 @@ export default function ChartOfAccounts() {
                                 name: type.name,
                                 description: type.description || "",
                                 normal_balance: type.normal_balance,
-                                cash_flow_category: type.cash_flow_category || "operating",
+                                cash_flow_category: type.cash_flow_category || "none",
                               })
                               setIsAccountTypeDialogOpen(true)
                             }}
