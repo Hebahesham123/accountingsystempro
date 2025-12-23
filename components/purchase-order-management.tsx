@@ -174,10 +174,22 @@ export default function PurchaseOrderManagement() {
     setIsDialogOpen(true)
   }
 
-  const handleViewClick = (po: PurchaseOrder) => {
-    setViewingPO(po)
-    setImagePreview(po.image_data || null)
-    setIsViewDialogOpen(true)
+  const handleViewClick = async (po: PurchaseOrder) => {
+    // Fetch the latest data to ensure status is correct
+    try {
+      const latestPO = await AccountingService.getPurchaseOrder(po.id)
+      setViewingPO(latestPO)
+      setImagePreview(latestPO.image_data || null)
+      setIsViewDialogOpen(true)
+      // Also refresh the list to update the table
+      loadPurchaseOrders()
+    } catch (error) {
+      console.error("Error fetching purchase order:", error)
+      // Fallback to using the passed PO if fetch fails
+      setViewingPO(po)
+      setImagePreview(po.image_data || null)
+      setIsViewDialogOpen(true)
+    }
   }
 
   const handleApprove = async (id: string, approvalType: 'admin' | 'accountant') => {
@@ -267,11 +279,13 @@ export default function PurchaseOrderManagement() {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'approved':
-        return <Badge className="bg-green-500 hover:bg-green-600"><CheckCircle className="h-3 w-3 mr-1" />Approved</Badge>
+        return <Badge className="bg-green-500 hover:bg-green-600"><CheckCircle className="h-3 w-3 mr-1" />{t("po.approved")}</Badge>
+      case 'first_approved':
+        return <Badge className="bg-blue-500 hover:bg-blue-600"><CheckCircle className="h-3 w-3 mr-1" />{t("po.firstApproved")}</Badge>
       case 'rejected':
-        return <Badge variant="destructive"><XCircle className="h-3 w-3 mr-1" />Rejected</Badge>
+        return <Badge variant="destructive"><XCircle className="h-3 w-3 mr-1" />{t("po.rejected")}</Badge>
       default:
-        return <Badge variant="outline"><Clock className="h-3 w-3 mr-1" />Pending</Badge>
+        return <Badge variant="outline"><Clock className="h-3 w-3 mr-1" />{t("po.pending")}</Badge>
     }
   }
 

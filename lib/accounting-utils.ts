@@ -3256,6 +3256,48 @@ export class AccountingService {
         throw error
       }
 
+      // Fix status for orders where both approvals exist but status is not 'approved'
+      // Update status in memory first, then try to persist
+      const fixedData = (data || []).map((po: any) => {
+        if (po.approved_by_1 && po.approved_by_2 && po.status !== 'approved' && po.status !== 'rejected') {
+          return { ...po, status: 'approved' }
+        }
+        return po
+      })
+
+      // Try to update in database (silently fail if there's an issue)
+      const ordersToFix = fixedData.filter((po: any, index: number) => 
+        (data || [])[index] && po.approved_by_1 && po.approved_by_2 && (data || [])[index].status !== 'approved' && (data || [])[index].status !== 'rejected'
+      )
+
+      if (ordersToFix.length > 0) {
+        // Update status to 'approved' for orders with both approvals (one at a time to avoid constraint issues)
+        try {
+          for (const po of ordersToFix) {
+            try {
+              const { error: updateError } = await supabase
+                .from("purchase_orders")
+                .update({ status: 'approved', updated_at: new Date().toISOString() })
+                .eq("id", po.id)
+
+              if (updateError) {
+                // Log but don't throw - we'll use the in-memory fix
+                console.warn(`Could not update purchase order ${po.id} status in database:`, updateError.message || updateError.code || 'Unknown error')
+              }
+            } catch (err) {
+              // Silently continue - we'll use the in-memory fix
+              console.warn(`Error updating purchase order ${po.id}:`, err)
+            }
+          }
+        } catch (fixError) {
+          // Silently continue - we'll use the in-memory fix
+          console.warn("Error in status fix process:", fixError)
+        }
+      }
+
+      // Return the fixed data (with corrected statuses in memory)
+      return fixedData
+
       return data || []
     } catch (error) {
       console.error("Error fetching purchase orders:", error)
@@ -3280,6 +3322,26 @@ export class AccountingService {
       if (error) {
         console.error("Error fetching purchase order:", error)
         throw error
+      }
+
+      // Fix status if both approvals exist but status is not 'approved'
+      if (data && data.approved_by_1 && data.approved_by_2 && data.status !== 'approved' && data.status !== 'rejected') {
+        const { data: updatedData, error: updateError } = await supabase
+          .from("purchase_orders")
+          .update({ status: 'approved', updated_at: new Date().toISOString() })
+          .eq("id", id)
+          .select(`
+            *,
+            created_by_user:created_by(id, name, email),
+            approved_by_1_user:approved_by_1(id, name, email),
+            approved_by_2_user:approved_by_2(id, name, email),
+            rejected_by_user:rejected_by(id, name, email)
+          `)
+          .single()
+
+        if (!updateError && updatedData) {
+          return updatedData
+        }
       }
 
       return data
@@ -3510,6 +3572,11 @@ export class AccountingService {
       } else if (approvalType === 'accountant') {
         // Accountant approval (second approval) - sets status to 'approved'
         if (currentPO.status === 'first_approved' && currentPO.approved_by_1 && !currentPO.approved_by_2) {
+          updateData.status = 'approved'
+          updateData.approved_by_2 = currentUser.id
+          updateData.approved_at_2 = new Date().toISOString()
+        } else if (currentPO.status === 'pending' && currentPO.approved_by_1 && !currentPO.approved_by_2) {
+          // Handle case where status wasn't updated to 'first_approved' but admin already approved
           updateData.status = 'approved'
           updateData.approved_by_2 = currentUser.id
           updateData.approved_at_2 = new Date().toISOString()
