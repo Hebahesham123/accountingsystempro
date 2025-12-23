@@ -37,10 +37,15 @@ export const setCurrentUser = (user: User | null): void => {
   }
 }
 
-// Check if user has permission to edit accounting data (admin and accountant)
-export const canEdit = (user: User | null): boolean => {
+// Check if user has permission to edit accounting data (accountants only, NOT admin)
+export const canEditAccountingData = (user: User | null): boolean => {
   if (!user) return false
-  return user.role === 'admin' || user.role === 'accountant'
+  return user.role === 'accountant'
+}
+
+// Legacy function for backward compatibility - now only accountants can edit
+export const canEdit = (user: User | null): boolean => {
+  return canEditAccountingData(user)
 }
 
 // Check if user can edit users (admin only)
@@ -49,7 +54,29 @@ export const canEditUsers = (user: User | null): boolean => {
   return user.role === 'admin'
 }
 
-// Check if user has permission to view
+// Check if user can view accounting data (admin, accountants, and users)
+export const canViewAccountingData = (user: User | null): boolean => {
+  if (!user) return false
+  return user.role === 'admin' || user.role === 'accountant' || user.role === 'user'
+}
+
+// Check if user can view purchase orders (all authenticated users)
+export const canViewPurchaseOrders = (user: User | null): boolean => {
+  return user !== null
+}
+
+// Check if user can create purchase orders (all authenticated users)
+export const canCreatePurchaseOrders = (user: User | null): boolean => {
+  return user !== null
+}
+
+// Check if user can approve purchase orders (admin and accountants)
+export const canApprovePurchaseOrders = (user: User | null): boolean => {
+  if (!user) return false
+  return user.role === 'admin' || user.role === 'accountant'
+}
+
+// Check if user has permission to view (all authenticated users)
 export const canView = (user: User | null): boolean => {
   return user !== null
 }
@@ -60,9 +87,21 @@ export const isAdmin = (user: User | null): boolean => {
   return user.role === 'admin'
 }
 
-// Check if user can delete
+// Check if user is accountant
+export const isAccountant = (user: User | null): boolean => {
+  if (!user) return false
+  return user.role === 'accountant'
+}
+
+// Check if user is regular user (view only, can create purchase orders)
+export const isRegularUser = (user: User | null): boolean => {
+  if (!user) return false
+  return user.role === 'user'
+}
+
+// Check if user can delete (accountants only)
 export const canDelete = (user: User | null): boolean => {
-  return canEdit(user)
+  return canEditAccountingData(user)
 }
 
 // Get user display name

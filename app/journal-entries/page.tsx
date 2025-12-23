@@ -1,13 +1,26 @@
 "use client"
 
+import { useEffect } from "react"
+import { useRouter } from "next/navigation"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import JournalEntryForm from "@/components/journal-entry-form"
 import JournalEntriesList from "@/components/journal-entries-list"
-import { getCurrentUser, canEdit } from "@/lib/auth-utils"
+import { getCurrentUser, canEditAccountingData, isRegularUser } from "@/lib/auth-utils"
 
 export default function JournalEntriesPage() {
+  const router = useRouter()
   const currentUser = getCurrentUser()
-  const canCreate = canEdit(currentUser)
+  const canCreate = canEditAccountingData(currentUser)
+
+  useEffect(() => {
+    if (isRegularUser(currentUser)) {
+      router.push('/purchase-orders')
+    }
+  }, [currentUser, router])
+
+  if (isRegularUser(currentUser)) {
+    return null
+  }
 
   return (
     <div className="container mx-auto px-4 py-8">

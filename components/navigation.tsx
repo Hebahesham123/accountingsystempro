@@ -3,16 +3,17 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import { Calculator, FileText, TrendingUp, BookOpen, BarChart3, Home, Menu, ClipboardList, Users, Folder } from "lucide-react"
+import { Calculator, FileText, TrendingUp, BookOpen, BarChart3, Home, Menu, ClipboardList, Users, Folder, ShoppingCart } from "lucide-react"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
 import UserSelector from "@/components/user-selector"
-import { getCurrentUser, isAdmin, logout } from "@/lib/auth-utils"
+import { getCurrentUser, isAdmin, canViewAccountingData, canViewPurchaseOrders, isRegularUser, logout } from "@/lib/auth-utils"
 
 const navigation = [
   { name: "Dashboard", href: "/", icon: Home },
   { name: "Chart of Accounts", href: "/chart-of-accounts", icon: BookOpen },
   { name: "Journal Entries", href: "/journal-entries", icon: FileText },
   { name: "Projects", href: "/project-management", icon: Folder, adminOnly: true },
+  { name: "Purchase Orders", href: "/purchase-orders", icon: ShoppingCart },
   { name: "General Ledger", href: "/general-ledger", icon: BarChart3 },
   { name: "Trial Balance", href: "/trial-balance", icon: Calculator },
   { name: "Financial Reports", href: "/financial-reports", icon: TrendingUp },
@@ -32,7 +33,7 @@ export default function Navigation() {
       <div className="container mx-auto px-4">
         <div className="flex h-16 items-center justify-between">
           <div className="flex items-center gap-6">
-            <Link href="/" className="flex items-center gap-2 font-semibold">
+            <Link href={isRegularUser(getCurrentUser()) ? "/purchase-orders" : "/"} className="flex items-center gap-2 font-semibold">
               <Calculator className="h-6 w-6" />
               <span>Accounting System</span>
             </Link>
@@ -40,8 +41,17 @@ export default function Navigation() {
             {/* Desktop Navigation */}
             <div className="hidden md:flex items-center gap-1">
               {navigation.map((item) => {
+                const currentUser = getCurrentUser()
+                // Regular users can only see Purchase Orders
+                if (isRegularUser(currentUser) && item.name !== "Purchase Orders") {
+                  return null
+                }
                 // Skip admin-only items if user is not admin
-                if (item.adminOnly && !isAdmin(getCurrentUser())) {
+                if (item.adminOnly && !isAdmin(currentUser)) {
+                  return null
+                }
+                // Skip accounting view items if user is regular user
+                if (item.requiresAccountingView && !canViewAccountingData(currentUser)) {
                   return null
                 }
                 const Icon = item.icon
@@ -81,8 +91,17 @@ export default function Navigation() {
               <SheetContent side="right" className="w-64">
                 <div className="flex flex-col gap-2 mt-8">
                   {navigation.map((item) => {
+                    const currentUser = getCurrentUser()
+                    // Regular users can only see Purchase Orders
+                    if (isRegularUser(currentUser) && item.name !== "Purchase Orders") {
+                      return null
+                    }
                     // Skip admin-only items if user is not admin
-                    if (item.adminOnly && !isAdmin(getCurrentUser())) {
+                    if (item.adminOnly && !isAdmin(currentUser)) {
+                      return null
+                    }
+                    // Skip accounting view items if user is regular user
+                    if (item.requiresAccountingView && !canViewAccountingData(currentUser)) {
                       return null
                     }
                     const Icon = item.icon

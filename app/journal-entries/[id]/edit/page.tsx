@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import { notFound } from "next/navigation"
 import { AccountingService } from "@/lib/accounting-utils"
 import JournalEntryEditForm from "@/components/journal-entry-edit-form"
-import { getCurrentUser, canEdit } from "@/lib/auth-utils"
+import { getCurrentUser, canEditAccountingData, isRegularUser } from "@/lib/auth-utils"
 
 interface EditPageProps {
   params: {
@@ -18,13 +18,22 @@ export default function EditJournalEntryPage({ params }: EditPageProps) {
   const currentUser = getCurrentUser()
 
   useEffect(() => {
+    // Redirect regular users to purchase orders
+    if (isRegularUser(currentUser)) {
+      router.push("/purchase-orders")
+      return
+    }
     // Check if user can edit
-    if (!canEdit(currentUser)) {
+    if (!canEditAccountingData(currentUser)) {
       router.push("/journal-entries")
     }
   }, [currentUser, router])
 
-  if (!canEdit(currentUser)) {
+  if (isRegularUser(currentUser)) {
+    return null
+  }
+
+  if (!canEditAccountingData(currentUser)) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">

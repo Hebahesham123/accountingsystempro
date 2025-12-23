@@ -2,10 +2,12 @@
 
 import Link from "next/link"
 import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Calculator, FileText, TrendingUp, Users, PieChart, BookOpen, DollarSign, BarChart3, ChevronRight, FolderOpen, ArrowUpRight, ArrowDownRight } from "lucide-react"
 import { AccountingService, type DashboardStats, type Account } from "@/lib/accounting-utils"
+import { getCurrentUser, isRegularUser } from "@/lib/auth-utils"
 
 type AccountSummary = {
   type: string
@@ -15,6 +17,16 @@ type AccountSummary = {
 }
 
 export default function HomePage() {
+  const router = useRouter()
+  const currentUser = getCurrentUser()
+  
+  // Redirect regular users to purchase orders
+  useEffect(() => {
+    if (isRegularUser(currentUser)) {
+      router.push('/purchase-orders')
+    }
+  }, [currentUser, router])
+
   const [stats, setStats] = useState<DashboardStats>({
     totalAssets: 0,
     netIncome: 0,
@@ -23,6 +35,11 @@ export default function HomePage() {
   })
   const [accountSummaries, setAccountSummaries] = useState<AccountSummary[]>([])
   const [loading, setLoading] = useState(true)
+
+  // Don't render dashboard for regular users
+  if (isRegularUser(currentUser)) {
+    return null
+  }
 
   useEffect(() => {
     const loadStats = async () => {

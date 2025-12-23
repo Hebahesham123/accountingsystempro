@@ -1,5 +1,6 @@
 import { supabase } from "./supabase"
 import type { Account, AccountType } from "./supabase"
+import { getCurrentUser } from "./auth-utils"
 
 export type { Account, AccountType }
 
@@ -3233,6 +3234,408 @@ export class AccountingService {
     } catch (error) {
       console.error("Error deleting project:", error)
       throw new Error("Failed to delete project")
+    }
+  }
+
+  // Purchase Order Functions
+  static async getPurchaseOrders(): Promise<any[]> {
+    try {
+      const { data, error } = await supabase
+        .from("purchase_orders")
+        .select(`
+          *,
+          created_by_user:created_by(id, name, email),
+          approved_by_1_user:approved_by_1(id, name, email),
+          approved_by_2_user:approved_by_2(id, name, email),
+          rejected_by_user:rejected_by(id, name, email)
+        `)
+        .order("created_at", { ascending: false })
+
+      if (error) {
+        console.error("Error fetching purchase orders:", error)
+        throw error
+      }
+
+      return data || []
+    } catch (error) {
+      console.error("Error fetching purchase orders:", error)
+      throw new Error("Failed to fetch purchase orders")
+    }
+  }
+
+  static async getPurchaseOrder(id: string): Promise<any> {
+    try {
+      const { data, error } = await supabase
+        .from("purchase_orders")
+        .select(`
+          *,
+          created_by_user:created_by(id, name, email),
+          approved_by_1_user:approved_by_1(id, name, email),
+          approved_by_2_user:approved_by_2(id, name, email),
+          rejected_by_user:rejected_by(id, name, email)
+        `)
+        .eq("id", id)
+        .single()
+
+      if (error) {
+        console.error("Error fetching purchase order:", error)
+        throw error
+      }
+
+      return data
+    } catch (error) {
+      console.error("Error fetching purchase order:", error)
+      throw new Error("Failed to fetch purchase order")
+    }
+  }
+
+  static async generatePONumber(): Promise<string> {
+    try {
+      // Get the latest PO number
+      const { data, error } = await supabase
+        .from("purchase_orders")
+        .select("po_number")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle()
+
+      if (error && error.code !== 'PGRST116') { // PGRST116 = no rows returned
+        console.error("Error generating PO number:", error)
+        throw error
+      }
+
+      let nextNumber = 1
+      if (data?.po_number) {
+        // Extract number from PO-XXX format
+        const match = data.po_number.match(/PO-(\d+)/)
+        if (match) {
+          nextNumber = parseInt(match[1], 10) + 1
+        }
+      }
+
+      return `PO-${String(nextNumber).padStart(4, '0')}`
+    } catch (error) {
+      console.error("Error generating PO number:", error)
+      // Fallback to timestamp-based number
+      return `PO-${Date.now().toString().slice(-6)}`
+    }
+  }
+
+  static async createPurchaseOrder(po: {
+    amount: number
+    description?: string
+    image_data?: string
+  }): Promise<any> {
+    try {
+      const currentUser = getCurrentUser()
+      if (!currentUser) {
+        throw new Error("User not authenticated")
+      }
+
+      // Generate unique PO number
+      const poNumber = await this.generatePONumber()
+
+      // Round amount to 2 decimal places
+      const roundedAmount = Math.round(po.amount * 100) / 100
+
+      const { data, error } = await supabase
+        .from("purchase_orders")
+        .insert([
+          {
+            po_number: poNumber,
+            amount: roundedAmount,
+            description: po.description?.trim() || null,
+            image_data: po.image_data || null,
+            status: 'pending',
+            created_by: currentUser.id,
+          },
+        ])
+        .select(`
+          *,
+          created_by_user:created_by(id, name, email),
+          approved_by_1_user:approved_by_1(id, name, email),
+          approved_by_2_user:approved_by_2(id, name, email),
+          rejected_by_user:rejected_by(id, name, email)
+        `)
+        .single()
+
+      if (error) {
+        console.error("Error creating purchase order:", error)
+        if (error.code === '23505' || error.message?.includes('unique') || error.message?.includes('duplicate')) {
+          // Retry with a different PO number if duplicate
+          const retryPONumber = await this.generatePONumber()
+          const { data: retryData, error: retryError } = await supabase
+            .from("purchase_orders")
+            .insert([
+              {
+                po_number: retryPONumber,
+                amount: roundedAmount,
+                description: po.description?.trim() || null,
+                image_data: po.image_data || null,
+                status: 'pending',
+                created_by: currentUser.id,
+              },
+            ])
+            .select(`
+              *,
+              created_by_user:users!purchase_orders_created_by_fkey(id, name, email)
+            `)
+            .single()
+
+          if (retryError) {
+            throw new Error(`Failed to create purchase order: ${retryError.message || 'Unknown error'}`)
+          }
+          return retryData
+        }
+        throw new Error(`Failed to create purchase order: ${error.message || 'Unknown error'}`)
+      }
+
+      return data
+    } catch (error) {
+      console.error("Error creating purchase order:", error)
+      if (error instanceof Error) {
+        throw error
+      }
+      throw new Error("Failed to create purchase order")
+    }
+  }
+
+  static async updatePurchaseOrder(id: string, po: {
+    amount?: number
+    description?: string
+    image_data?: string
+  }): Promise<any> {
+    try {
+      const updateData: any = {
+        updated_at: new Date().toISOString(),
+      }
+
+      if (po.amount !== undefined) {
+        updateData.amount = Math.round(po.amount * 100) / 100
+      }
+      if (po.description !== undefined) {
+        updateData.description = po.description.trim() || null
+      }
+      if (po.image_data !== undefined) {
+        updateData.image_data = po.image_data || null
+      }
+
+      const { data, error } = await supabase
+        .from("purchase_orders")
+        .update(updateData)
+        .eq("id", id)
+        .select(`
+          *,
+          created_by_user:created_by(id, name, email),
+          approved_by_1_user:approved_by_1(id, name, email),
+          approved_by_2_user:approved_by_2(id, name, email),
+          rejected_by_user:rejected_by(id, name, email)
+        `)
+        .single()
+
+      if (error) {
+        console.error("Error updating purchase order:", error)
+        throw new Error(`Failed to update purchase order: ${error.message || 'Unknown error'}`)
+      }
+
+      return data
+    } catch (error) {
+      console.error("Error updating purchase order:", error)
+      if (error instanceof Error) {
+        throw error
+      }
+      throw new Error("Failed to update purchase order")
+    }
+  }
+
+  static async approvePurchaseOrder(id: string, approvalType: 'admin' | 'accountant'): Promise<any> {
+    try {
+      const currentUser = getCurrentUser()
+      if (!currentUser) {
+        throw new Error("User not authenticated")
+      }
+
+      // Check if user has permission to approve (admin or accountant)
+      if (currentUser.role !== 'admin' && currentUser.role !== 'accountant') {
+        throw new Error("You don't have permission to approve purchase orders")
+      }
+
+      // Verify role matches approval type
+      if (approvalType === 'admin' && currentUser.role !== 'admin') {
+        throw new Error("Only admin can perform admin approval")
+      }
+      if (approvalType === 'accountant' && currentUser.role !== 'accountant') {
+        throw new Error("Only accountant can perform accountant approval")
+      }
+
+      // Get current purchase order to check status
+      const { data: currentPO, error: fetchError } = await supabase
+        .from("purchase_orders")
+        .select("status, approved_by_1, approved_by_2")
+        .eq("id", id)
+        .single()
+
+      if (fetchError) {
+        throw new Error(`Failed to fetch purchase order: ${fetchError.message}`)
+      }
+
+      if (!currentPO) {
+        throw new Error("Purchase order not found")
+      }
+
+      // Check if already rejected
+      if (currentPO.status === 'rejected') {
+        throw new Error("Cannot approve a rejected purchase order")
+      }
+
+      // Check if user already approved
+      if (currentPO.approved_by_1 === currentUser.id || currentPO.approved_by_2 === currentUser.id) {
+        throw new Error("You have already approved this purchase order")
+      }
+
+      let updateData: any = {
+        updated_at: new Date().toISOString(),
+      }
+
+      // Admin does first approval, Accountant does second approval
+      if (approvalType === 'admin') {
+        // Admin approval (first approval)
+        if (currentPO.status === 'pending' && !currentPO.approved_by_1) {
+          updateData.status = 'first_approved'
+          updateData.approved_by_1 = currentUser.id
+          updateData.approved_at_1 = new Date().toISOString()
+        } else {
+          throw new Error("Admin approval can only be done on pending orders")
+        }
+      } else if (approvalType === 'accountant') {
+        // Accountant approval (second approval) - sets status to 'approved'
+        if (currentPO.status === 'first_approved' && currentPO.approved_by_1 && !currentPO.approved_by_2) {
+          updateData.status = 'approved'
+          updateData.approved_by_2 = currentUser.id
+          updateData.approved_at_2 = new Date().toISOString()
+        } else {
+          throw new Error("Accountant approval can only be done after admin approval")
+        }
+      }
+
+      const { data, error } = await supabase
+        .from("purchase_orders")
+        .update(updateData)
+        .eq("id", id)
+        .select(`
+          *,
+          created_by_user:created_by(id, name, email),
+          approved_by_1_user:approved_by_1(id, name, email),
+          approved_by_2_user:approved_by_2(id, name, email),
+          rejected_by_user:rejected_by(id, name, email)
+        `)
+        .single()
+
+      if (error) {
+        console.error("Error approving purchase order:", error)
+        throw new Error(`Failed to approve purchase order: ${error.message || 'Unknown error'}`)
+      }
+
+      return data
+    } catch (error) {
+      console.error("Error approving purchase order:", error)
+      if (error instanceof Error) {
+        throw error
+      }
+      throw new Error("Failed to approve purchase order")
+    }
+  }
+
+  static async rejectPurchaseOrder(id: string, rejectionReason: string): Promise<any> {
+    try {
+      const currentUser = getCurrentUser()
+      if (!currentUser) {
+        throw new Error("User not authenticated")
+      }
+
+      // Check if user has permission to reject (admin or accountant)
+      if (currentUser.role !== 'admin' && currentUser.role !== 'accountant') {
+        throw new Error("You don't have permission to reject purchase orders")
+      }
+
+      // Validate rejection reason
+      if (!rejectionReason || rejectionReason.trim().length === 0) {
+        throw new Error("Rejection reason is required")
+      }
+
+      // Get current purchase order to check status
+      const { data: currentPO } = await supabase
+        .from("purchase_orders")
+        .select("status")
+        .eq("id", id)
+        .single()
+
+      if (currentPO?.status === 'approved') {
+        throw new Error("Cannot reject an approved purchase order")
+      }
+
+      // Try to update with rejection_reason, fallback if column doesn't exist
+      let updateData: any = {
+        status: 'rejected',
+        rejected_by: currentUser.id,
+        rejected_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }
+
+      // Try to include rejection_reason if column exists
+      try {
+        updateData.rejection_reason = rejectionReason.trim()
+      } catch (e) {
+        // Column might not exist yet
+        console.warn("rejection_reason column may not exist, attempting update without it")
+      }
+
+      const { data, error } = await supabase
+        .from("purchase_orders")
+        .update(updateData)
+        .eq("id", id)
+        .select(`
+          *,
+          created_by_user:created_by(id, name, email),
+          approved_by_1_user:approved_by_1(id, name, email),
+          approved_by_2_user:approved_by_2(id, name, email),
+          rejected_by_user:rejected_by(id, name, email)
+        `)
+        .single()
+
+      if (error) {
+        console.error("Error rejecting purchase order:", error)
+        // If error is about missing column, provide helpful message
+        if (error.message?.includes('rejection_reason') || error.message?.includes('schema cache')) {
+          throw new Error(`Database column 'rejection_reason' not found. Please run the migration script: scripts/23-add-rejection-reason-to-purchase-orders.sql`)
+        }
+        throw new Error(`Failed to reject purchase order: ${error.message || 'Unknown error'}`)
+      }
+
+      return data
+    } catch (error) {
+      console.error("Error rejecting purchase order:", error)
+      if (error instanceof Error) {
+        throw error
+      }
+      throw new Error("Failed to reject purchase order")
+    }
+  }
+
+  static async deletePurchaseOrder(id: string): Promise<void> {
+    try {
+      const { error } = await supabase
+        .from("purchase_orders")
+        .delete()
+        .eq("id", id)
+
+      if (error) {
+        console.error("Error deleting purchase order:", error)
+        throw error
+      }
+    } catch (error) {
+      console.error("Error deleting purchase order:", error)
+      throw new Error("Failed to delete purchase order")
     }
   }
 }

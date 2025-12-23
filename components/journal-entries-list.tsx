@@ -14,7 +14,7 @@ import { useToast } from "@/hooks/use-toast"
 import JournalEntryReview from "@/components/journal-entry-review"
 import { supabase } from "@/lib/supabase"
 import Link from "next/link"
-import { getCurrentUser, canEdit } from "@/lib/auth-utils"
+import { getCurrentUser, canEditAccountingData } from "@/lib/auth-utils"
 
 export default function JournalEntriesList() {
   const [entries, setEntries] = useState<JournalEntry[]>([])
@@ -342,7 +342,7 @@ export default function JournalEntriesList() {
           <p className="text-gray-600 mt-1">Manage and review all journal entries</p>
         </div>
         <div className="flex gap-3">
-          {canEdit(getCurrentUser()) && (
+          {canEditAccountingData(getCurrentUser()) && (
             <Link href="/journal-entries">
               <Button>
                 <Plus className="h-4 w-4 mr-2" />
@@ -689,7 +689,7 @@ export default function JournalEntriesList() {
                             <Eye className="h-4 w-4" />
                           </Button>
                           
-                          {canEdit(getCurrentUser()) && (
+                          {canEditAccountingData(getCurrentUser()) && (
                             <>
                               <Link href={`/journal-entries/${entry.id}/edit`}>
                                 <Button variant="ghost" size="sm">

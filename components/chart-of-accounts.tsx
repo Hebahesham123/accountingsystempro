@@ -35,7 +35,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Switch } from "@/components/ui/switch"
 import { type Account, type AccountType, AccountingService } from "@/lib/accounting-utils"
 import { useToast } from "@/hooks/use-toast"
-import { getCurrentUser, canEdit, isAdmin } from "@/lib/auth-utils"
+import { getCurrentUser, canEditAccountingData, isAdmin, canViewAccountingData } from "@/lib/auth-utils"
 
 export default function ChartOfAccounts() {
   const [accounts, setAccounts] = useState<Account[]>([])
@@ -479,7 +479,7 @@ export default function ChartOfAccounts() {
 
 
           <div className="flex gap-1">
-            {isAdmin(getCurrentUser()) && (
+            {canEditAccountingData(getCurrentUser()) && (
               <Button
                 variant="outline"
                 size="sm"
@@ -508,7 +508,7 @@ export default function ChartOfAccounts() {
                 Add Sub
               </Button>
             )}
-            {isAdmin(getCurrentUser()) && (
+            {canEditAccountingData(getCurrentUser()) && (
               <>
                 <Button
                   variant="ghost"
@@ -614,7 +614,7 @@ export default function ChartOfAccounts() {
                 </div>
                 <Dialog open={isAccountDialogOpen} onOpenChange={setIsAccountDialogOpen}>
                   <DialogTrigger asChild>
-                    {isAdmin(getCurrentUser()) && (
+                    {canEditAccountingData(getCurrentUser()) && (
                       <Button onClick={resetAccountForm}>
                         <Plus className="h-4 w-4 mr-2" />
                         Add Account
@@ -804,7 +804,7 @@ export default function ChartOfAccounts() {
                 </div>
                 <Dialog open={isAccountTypeDialogOpen} onOpenChange={setIsAccountTypeDialogOpen}>
                   <DialogTrigger asChild>
-                    {isAdmin(getCurrentUser()) && (
+                    {canEditAccountingData(getCurrentUser()) && (
                       <Button onClick={resetAccountTypeForm}>
                         <Plus className="h-4 w-4 mr-2" />
                         Add Account Type
@@ -927,7 +927,7 @@ export default function ChartOfAccounts() {
                       {type.description && <p className="text-sm text-muted-foreground">{type.description}</p>}
                     </div>
                     <div className="flex gap-2 mt-3">
-                      {isAdmin(getCurrentUser()) && (
+                      {canEditAccountingData(getCurrentUser()) && (
                         <>
                           <Button
                             variant="ghost"

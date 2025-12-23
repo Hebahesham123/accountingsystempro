@@ -11,7 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { useToast } from "@/hooks/use-toast"
 import { AccountingService } from "@/lib/accounting-utils"
-import { getCurrentUser, isAdmin } from "@/lib/auth-utils"
+import { getCurrentUser, isAdmin, canEditAccountingData } from "@/lib/auth-utils"
 import { useRouter } from "next/navigation"
 
 export default function ProjectManagement() {

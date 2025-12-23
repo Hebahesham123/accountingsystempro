@@ -15,7 +15,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { type Account, AccountingService } from "@/lib/accounting-utils"
 import { useToast } from "@/hooks/use-toast"
-import { getCurrentUser, canEdit } from "@/lib/auth-utils"
+import { getCurrentUser, canEditAccountingData } from "@/lib/auth-utils"
 import { useRouter } from "next/navigation"
 
 interface JournalLine {
@@ -60,7 +60,7 @@ export default function JournalEntryForm() {
 
   // Check permissions on mount
   useEffect(() => {
-    if (!canEdit(currentUser)) {
+    if (!canEditAccountingData(currentUser)) {
       toast({
         title: "Access Denied",
         description: "You don't have permission to create journal entries. View only.",
@@ -85,7 +85,7 @@ export default function JournalEntryForm() {
   }, []) // Empty deps - only run once on mount
 
   // Don't render form if user can't edit
-  if (!canEdit(currentUser)) {
+  if (!canEditAccountingData(currentUser)) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <div className="text-center">
