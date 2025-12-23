@@ -23,3 +23,4 @@ WHERE name IN ('Revenue', 'Expense');
 -- Assets like Equipment, Property are typically investing
 -- But we'll leave them as operating by default and let users change
 
+

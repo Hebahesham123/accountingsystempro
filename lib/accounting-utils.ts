@@ -3258,8 +3258,12 @@ export class AccountingService {
 
       // Fix status for orders where both approvals exist but status is not 'approved'
       // Update status in memory first, then try to persist
+      // Don't override 'supply_done' or 'rejected' statuses
       const fixedData = (data || []).map((po: any) => {
-        if (po.approved_by_1 && po.approved_by_2 && po.status !== 'approved' && po.status !== 'rejected') {
+        if (po.approved_by_1 && po.approved_by_2 && 
+            po.status !== 'approved' && 
+            po.status !== 'rejected' && 
+            po.status !== 'supply_done') {
           return { ...po, status: 'approved' }
         }
         return po
@@ -3267,7 +3271,12 @@ export class AccountingService {
 
       // Try to update in database (silently fail if there's an issue)
       const ordersToFix = fixedData.filter((po: any, index: number) => 
-        (data || [])[index] && po.approved_by_1 && po.approved_by_2 && (data || [])[index].status !== 'approved' && (data || [])[index].status !== 'rejected'
+        (data || [])[index] && 
+        po.approved_by_1 && 
+        po.approved_by_2 && 
+        (data || [])[index].status !== 'approved' && 
+        (data || [])[index].status !== 'rejected' &&
+        (data || [])[index].status !== 'supply_done'
       )
 
       if (ordersToFix.length > 0) {
@@ -3297,8 +3306,6 @@ export class AccountingService {
 
       // Return the fixed data (with corrected statuses in memory)
       return fixedData
-
-      return data || []
     } catch (error) {
       console.error("Error fetching purchase orders:", error)
       throw new Error("Failed to fetch purchase orders")
@@ -3522,14 +3529,6 @@ export class AccountingService {
         throw new Error("You don't have permission to approve purchase orders")
       }
 
-      // Verify role matches approval type
-      if (approvalType === 'admin' && currentUser.role !== 'admin') {
-        throw new Error("Only admin can perform admin approval")
-      }
-      if (approvalType === 'accountant' && currentUser.role !== 'accountant') {
-        throw new Error("Only accountant can perform accountant approval")
-      }
-
       // Get current purchase order to check status
       const { data: currentPO, error: fetchError } = await supabase
         .from("purchase_orders")
@@ -3559,30 +3558,27 @@ export class AccountingService {
         updated_at: new Date().toISOString(),
       }
 
-      // Admin does first approval, Accountant does second approval
-      if (approvalType === 'admin') {
-        // Admin approval (first approval)
-        if (currentPO.status === 'pending' && !currentPO.approved_by_1) {
-          updateData.status = 'first_approved'
-          updateData.approved_by_1 = currentUser.id
-          updateData.approved_at_1 = new Date().toISOString()
-        } else {
-          throw new Error("Admin approval can only be done on pending orders")
-        }
-      } else if (approvalType === 'accountant') {
-        // Accountant approval (second approval) - sets status to 'approved'
-        if (currentPO.status === 'first_approved' && currentPO.approved_by_1 && !currentPO.approved_by_2) {
-          updateData.status = 'approved'
-          updateData.approved_by_2 = currentUser.id
-          updateData.approved_at_2 = new Date().toISOString()
-        } else if (currentPO.status === 'pending' && currentPO.approved_by_1 && !currentPO.approved_by_2) {
-          // Handle case where status wasn't updated to 'first_approved' but admin already approved
-          updateData.status = 'approved'
-          updateData.approved_by_2 = currentUser.id
-          updateData.approved_at_2 = new Date().toISOString()
-        } else {
-          throw new Error("Accountant approval can only be done after admin approval")
-        }
+      // Both admin and accountant can approve at any stage
+      // First approval: pending -> first_approved
+      if (currentPO.status === 'pending' && !currentPO.approved_by_1) {
+        updateData.status = 'first_approved'
+        updateData.approved_by_1 = currentUser.id
+        updateData.approved_at_1 = new Date().toISOString()
+      }
+      // Second approval: first_approved -> approved
+      else if (currentPO.status === 'first_approved' && currentPO.approved_by_1 && !currentPO.approved_by_2) {
+        updateData.status = 'approved'
+        updateData.approved_by_2 = currentUser.id
+        updateData.approved_at_2 = new Date().toISOString()
+      }
+      // Handle edge case where status is pending but first approval exists
+      else if (currentPO.status === 'pending' && currentPO.approved_by_1 && !currentPO.approved_by_2) {
+        updateData.status = 'approved'
+        updateData.approved_by_2 = currentUser.id
+        updateData.approved_at_2 = new Date().toISOString()
+      }
+      else {
+        throw new Error("Purchase order is not in a state that can be approved")
       }
 
       const { data, error } = await supabase
@@ -3686,6 +3682,71 @@ export class AccountingService {
         throw error
       }
       throw new Error("Failed to reject purchase order")
+    }
+  }
+
+  static async markSupplyDone(id: string): Promise<any> {
+    try {
+      const currentUser = getCurrentUser()
+      if (!currentUser) {
+        throw new Error("User not authenticated")
+      }
+
+      // Check if user has permission (regular users only)
+      if (currentUser.role !== 'user') {
+        throw new Error("Only regular users can mark purchase orders as supply done")
+      }
+
+      // Get current purchase order to check status
+      const { data: currentPO, error: fetchError } = await supabase
+        .from("purchase_orders")
+        .select("status")
+        .eq("id", id)
+        .single()
+
+      if (fetchError) {
+        throw new Error(`Failed to fetch purchase order: ${fetchError.message}`)
+      }
+
+      if (!currentPO) {
+        throw new Error("Purchase order not found")
+      }
+
+      // Only allow marking as supply done if status is 'approved'
+      if (currentPO.status !== 'approved') {
+        throw new Error("Only approved purchase orders can be marked as supply done")
+      }
+
+      const updateData = {
+        status: 'supply_done',
+        updated_at: new Date().toISOString(),
+      }
+
+      const { data, error } = await supabase
+        .from("purchase_orders")
+        .update(updateData)
+        .eq("id", id)
+        .select(`
+          *,
+          created_by_user:created_by(id, name, email),
+          approved_by_1_user:approved_by_1(id, name, email),
+          approved_by_2_user:approved_by_2(id, name, email),
+          rejected_by_user:rejected_by(id, name, email)
+        `)
+        .single()
+
+      if (error) {
+        console.error("Error marking supply as done:", error)
+        throw new Error(`Failed to mark supply as done: ${error.message || 'Unknown error'}`)
+      }
+
+      return data
+    } catch (error) {
+      console.error("Error marking supply as done:", error)
+      if (error instanceof Error) {
+        throw error
+      }
+      throw new Error("Failed to mark supply as done")
     }
   }
 

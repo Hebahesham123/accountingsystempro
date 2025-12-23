@@ -22,7 +22,7 @@ interface PurchaseOrder {
   amount: number
   description?: string
   image_data?: string
-  status: 'pending' | 'first_approved' | 'approved' | 'rejected'
+  status: 'pending' | 'first_approved' | 'approved' | 'rejected' | 'supply_done'
   approved_by_1?: string
   approved_at_1?: string
   approved_by_2?: string
@@ -252,6 +252,30 @@ export default function PurchaseOrderManagement() {
     }
   }
 
+  const handleSupplyDone = async (id: string) => {
+    const confirmMessage = language === "ar" 
+      ? "هل أنت متأكد أنك تريد وضع علامة على أمر الشراء هذا كتم التوريد؟"
+      : "Are you sure you want to mark this purchase order as supply done?"
+    if (!confirm(confirmMessage)) {
+      return
+    }
+    try {
+      await AccountingService.markSupplyDone(id)
+      toast({
+        title: t("general.success"),
+        description: language === "ar" ? "تم وضع علامة على أمر الشراء كتم التوريد بنجاح" : "Purchase order marked as supply done successfully",
+      })
+      loadPurchaseOrders()
+    } catch (error) {
+      console.error("Error marking supply as done:", error)
+      toast({
+        title: t("general.error"),
+        description: error instanceof Error ? error.message : (language === "ar" ? "فشل في وضع علامة على أمر الشراء" : "Failed to mark purchase order as supply done"),
+        variant: "destructive",
+      })
+    }
+  }
+
   const handleDelete = async (id: string) => {
     const confirmMessage = language === "ar" 
       ? "هل أنت متأكد أنك تريد حذف أمر الشراء هذا؟"
@@ -284,6 +308,8 @@ export default function PurchaseOrderManagement() {
         return <Badge className="bg-blue-500 hover:bg-blue-600"><CheckCircle className="h-3 w-3 mr-1" />{t("po.firstApproved")}</Badge>
       case 'rejected':
         return <Badge variant="destructive"><XCircle className="h-3 w-3 mr-1" />{t("po.rejected")}</Badge>
+      case 'supply_done':
+        return <Badge className="bg-green-600 hover:bg-green-700"><CheckCircle className="h-3 w-3 mr-1" />Supply Done</Badge>
       default:
         return <Badge variant="outline"><Clock className="h-3 w-3 mr-1" />{t("po.pending")}</Badge>
     }
@@ -294,6 +320,7 @@ export default function PurchaseOrderManagement() {
   const canCreatePO = canCreatePurchaseOrders(currentUser) // All users can create
   const isUserAdmin = isAdmin(currentUser)
   const isUserAccountant = currentUser?.role === 'accountant'
+  const isRegularUser = currentUser?.role === 'user'
 
   return (
       <div className="w-full space-y-6">
@@ -426,6 +453,9 @@ export default function PurchaseOrderManagement() {
                   <TableHead>{t("common.status")}</TableHead>
                   <TableHead>{t("common.createdBy")}</TableHead>
                   <TableHead>{t("po.firstApprovedBy")}</TableHead>
+                  {canApprove && (
+                    <TableHead>Supply Status</TableHead>
+                  )}
                   <TableHead>{t("common.date")}</TableHead>
                   <TableHead className="text-right">{t("common.actions")}</TableHead>
                 </TableRow>
@@ -433,13 +463,13 @@ export default function PurchaseOrderManagement() {
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={10} className="text-center py-8">
+                    <TableCell colSpan={canApprove ? 9 : 8} className="text-center py-8">
                       {t("po.loadingOrders")}
                     </TableCell>
                   </TableRow>
                 ) : purchaseOrders.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={10} className="text-center py-8 text-gray-500">
+                    <TableCell colSpan={canApprove ? 9 : 8} className="text-center py-8 text-gray-500">
                       {t("po.noOrdersFound")}
                     </TableCell>
                   </TableRow>
@@ -463,31 +493,23 @@ export default function PurchaseOrderManagement() {
                           </div>
                         ) : "-"}
                       </TableCell>
-                      <TableCell>
-                        {po.approved_by_2_user?.name ? (
-                          <div>
-                            <div>{po.approved_by_2_user.name}</div>
-                            <div className="text-xs text-muted-foreground">
-                              {po.approved_at_2 ? new Date(po.approved_at_2).toLocaleDateString() : ""}
-                            </div>
-                          </div>
-                        ) : "-"}
-                      </TableCell>
-                      <TableCell>
-                        {po.rejected_by_user?.name ? (
-                          <div>
-                            <div className="text-red-600">{po.rejected_by_user.name}</div>
-                            <div className="text-xs text-muted-foreground">
-                              {po.rejected_at ? new Date(po.rejected_at).toLocaleDateString() : ""}
-                            </div>
-                            {po.rejection_reason && (
-                              <div className="text-xs text-red-600 mt-1 max-w-[200px] truncate" title={po.rejection_reason}>
-                                {po.rejection_reason}
-                              </div>
-                            )}
-                          </div>
-                        ) : "-"}
-                      </TableCell>
+                      {canApprove && (
+                        <TableCell>
+                          {po.status === 'supply_done' ? (
+                            <Badge className="bg-green-600 hover:bg-green-700">
+                              <CheckCircle className="h-3 w-3 mr-1" />
+                              Done
+                            </Badge>
+                          ) : po.status === 'approved' ? (
+                            <Badge variant="outline" className="text-orange-600 border-orange-600">
+                              <Clock className="h-3 w-3 mr-1" />
+                              Pending
+                            </Badge>
+                          ) : (
+                            <span className="text-muted-foreground text-sm">-</span>
+                          )}
+                        </TableCell>
+                      )}
                       <TableCell>
                         {new Date(po.created_at).toLocaleDateString()}
                       </TableCell>
@@ -507,53 +529,95 @@ export default function PurchaseOrderManagement() {
                                   <Edit className="h-4 w-4" />
                                 </Button>
                               )}
+                              {canApprove && (
+                                <>
+                                  {isUserAdmin && (
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="text-blue-600 hover:text-blue-700"
+                                      onClick={() => handleApprove(po.id, 'admin')}
+                                      title="Admin Approval (First Approval)"
+                                    >
+                                      <CheckCircle className="h-4 w-4 mr-1" />
+                                      {t("po.adminApprove")}
+                                    </Button>
+                                  )}
+                                  {isUserAccountant && (
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="text-blue-600 hover:text-blue-700"
+                                      onClick={() => handleApprove(po.id, 'admin')}
+                                      title="Accountant Approval (First Approval)"
+                                    >
+                                      <CheckCircle className="h-4 w-4 mr-1" />
+                                      Approve
+                                    </Button>
+                                  )}
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="text-red-600 hover:text-red-700"
+                                    onClick={() => handleRejectClick(po.id)}
+                                    title="Reject"
+                                  >
+                                    <XCircle className="h-4 w-4" />
+                                  </Button>
+                                </>
+                              )}
+                            </>
+                          )}
+                          {po.status === 'first_approved' && canApprove && (
+                            <>
+                              {isUserAccountant && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="text-green-600 hover:text-green-700"
+                                  onClick={() => handleApprove(po.id, 'accountant')}
+                                  title={t("po.accountantApprove")}
+                                >
+                                  <CheckCircle className="h-4 w-4 mr-1" />
+                                  {t("po.accountantApprove")}
+                                </Button>
+                              )}
                               {isUserAdmin && (
                                 <Button
                                   variant="ghost"
                                   size="sm"
-                                  className="text-blue-600 hover:text-blue-700"
-                                  onClick={() => handleApprove(po.id, 'admin')}
-                                  title="Admin Approval (First Approval)"
+                                  className="text-green-600 hover:text-green-700"
+                                  onClick={() => handleApprove(po.id, 'accountant')}
+                                  title="Admin Second Approval"
                                 >
                                   <CheckCircle className="h-4 w-4 mr-1" />
-                                  {t("po.adminApprove")}
+                                  Approve
                                 </Button>
                               )}
-                              {canApprove && (
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="text-red-600 hover:text-red-700"
-                                  onClick={() => handleRejectClick(po.id)}
-                                >
-                                  <XCircle className="h-4 w-4" />
-                                </Button>
-                              )}
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="text-red-600 hover:text-red-700"
+                                onClick={() => handleRejectClick(po.id)}
+                                title="Reject"
+                              >
+                                <XCircle className="h-4 w-4" />
+                              </Button>
                             </>
                           )}
-                          {po.status === 'first_approved' && isUserAccountant && (
+                          {po.status === 'approved' && isRegularUser && (
                             <Button
                               variant="ghost"
                               size="sm"
                               className="text-green-600 hover:text-green-700"
-                              onClick={() => handleApprove(po.id, 'accountant')}
-                              title={t("po.accountantApprove")}
+                              onClick={() => handleSupplyDone(po.id)}
+                              title="Mark as Supply Done"
                             >
                               <CheckCircle className="h-4 w-4 mr-1" />
-                              {t("po.accountantApprove")}
+                              Supply Done
                             </Button>
                           )}
-                          {po.status === 'first_approved' && canApprove && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="text-red-600 hover:text-red-700"
-                              onClick={() => handleRejectClick(po.id)}
-                            >
-                              <XCircle className="h-4 w-4" />
-                            </Button>
-                          )}
-                          {canEditPO && (
+                          {canEditPO && po.status === 'pending' && (
                             <Button
                               variant="ghost"
                               size="sm"
@@ -598,6 +662,26 @@ export default function PurchaseOrderManagement() {
                   <Label className="text-muted-foreground">Status</Label>
                   <div className="mt-1">{getStatusBadge(viewingPO.status)}</div>
                 </div>
+                {canApprove && (
+                  <div>
+                    <Label className="text-muted-foreground">Supply Status</Label>
+                    <div className="mt-1">
+                      {viewingPO.status === 'supply_done' ? (
+                        <Badge className="bg-green-600 hover:bg-green-700">
+                          <CheckCircle className="h-3 w-3 mr-1" />
+                          Supply Done
+                        </Badge>
+                      ) : viewingPO.status === 'approved' ? (
+                        <Badge variant="outline" className="text-orange-600 border-orange-600">
+                          <Clock className="h-3 w-3 mr-1" />
+                          Supply Pending
+                        </Badge>
+                      ) : (
+                        <span className="text-muted-foreground text-sm">Not applicable</span>
+                      )}
+                    </div>
+                  </div>
+                )}
                 <div>
                   <Label className="text-muted-foreground">Created By</Label>
                   <p className="font-medium">{viewingPO.created_by_user?.name || "Unknown"}</p>
