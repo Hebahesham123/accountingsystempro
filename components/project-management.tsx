@@ -13,10 +13,12 @@ import { useToast } from "@/hooks/use-toast"
 import { AccountingService } from "@/lib/accounting-utils"
 import { getCurrentUser, isAdmin, canEditAccountingData } from "@/lib/auth-utils"
 import { useRouter } from "next/navigation"
+import { useLanguage } from "@/lib/language-context"
 
 export default function ProjectManagement() {
   const router = useRouter()
   const currentUser = getCurrentUser()
+  const { language, t } = useLanguage()
   const [projects, setProjects] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
@@ -157,8 +159,8 @@ export default function ProjectManagement() {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <div className="text-center">
-          <h2 className="text-2xl font-bold mb-4">Access Denied</h2>
-          <p className="text-muted-foreground">Only administrators can manage projects.</p>
+          <h2 className="text-2xl font-bold mb-4">{t("project.accessDenied")}</h2>
+          <p className="text-muted-foreground">{t("project.onlyAdmin")}</p>
         </div>
       </div>
     )
@@ -173,29 +175,29 @@ export default function ProjectManagement() {
         </div>
         <Button onClick={() => handleOpenDialog()}>
           <Plus className="h-4 w-4 mr-2" />
-          Add Project
+          {t("project.new")}
         </Button>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>Projects</CardTitle>
-          <CardDescription>List of all active projects</CardDescription>
+          <CardTitle>{t("project.title")}</CardTitle>
+          <CardDescription>{t("project.listOfActive")}</CardDescription>
         </CardHeader>
         <CardContent>
           {loading ? (
-            <div className="text-center py-8">Loading projects...</div>
+            <div className="text-center py-8">{t("project.loading")}</div>
           ) : projects.length === 0 ? (
             <div className="text-center py-8 text-gray-500">
-              No projects found. Click "Add Project" to create one.
+              {t("project.clickToCreate")}
             </div>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Description</TableHead>
-                  <TableHead>Actions</TableHead>
+                  <TableHead>{t("common.name")}</TableHead>
+                  <TableHead>{t("common.description")}</TableHead>
+                  <TableHead>{t("common.actions")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -239,39 +241,39 @@ export default function ProjectManagement() {
         <DialogContent>
           <form onSubmit={handleSubmit}>
             <DialogHeader>
-              <DialogTitle>{editingProject ? "Edit Project" : "Add Project"}</DialogTitle>
+              <DialogTitle>{editingProject ? t("project.edit") : t("project.new")}</DialogTitle>
               <DialogDescription>
                 {editingProject
-                  ? "Update the project information below."
-                  : "Enter the project details below."}
+                  ? t("project.updateProject")
+                  : t("project.enterDetails")}
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-4">
               <div className="space-y-2">
-                <Label htmlFor="name">Project Name *</Label>
+                <Label htmlFor="name">{t("project.name")} *</Label>
                 <Input
                   id="name"
                   value={formData.name}
                   onChange={(e) => handleInputChange("name", e.target.value)}
-                  placeholder="e.g., Project 1"
+                  placeholder={t("project.placeholder")}
                   required
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="description">Description</Label>
+                <Label htmlFor="description">{t("common.description")}</Label>
                 <Textarea
                   id="description"
                   value={formData.description}
                   onChange={(e) => handleInputChange("description", e.target.value)}
-                  placeholder="Optional description"
+                  placeholder={t("general.optionalDescription")}
                 />
               </div>
             </div>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={handleCloseDialog}>
-                Cancel
+                {t("general.cancel")}
               </Button>
-              <Button type="submit">{editingProject ? "Update" : "Create"}</Button>
+              <Button type="submit">{editingProject ? t("general.update") : t("general.create")}</Button>
             </DialogFooter>
           </form>
         </DialogContent>

@@ -6,22 +6,24 @@ import { Button } from "@/components/ui/button"
 import { Calculator, FileText, TrendingUp, BookOpen, BarChart3, Home, Menu, ClipboardList, Users, Folder, ShoppingCart } from "lucide-react"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
 import UserSelector from "@/components/user-selector"
-import { getCurrentUser, isAdmin, canViewAccountingData, canViewPurchaseOrders, isRegularUser, logout } from "@/lib/auth-utils"
-
-const navigation = [
-  { name: "Dashboard", href: "/", icon: Home },
-  { name: "Chart of Accounts", href: "/chart-of-accounts", icon: BookOpen },
-  { name: "Journal Entries", href: "/journal-entries", icon: FileText },
-  { name: "Projects", href: "/project-management", icon: Folder, adminOnly: true },
-  { name: "Purchase Orders", href: "/purchase-orders", icon: ShoppingCart },
-  { name: "General Ledger", href: "/general-ledger", icon: BarChart3 },
-  { name: "Trial Balance", href: "/trial-balance", icon: Calculator },
-  { name: "Financial Reports", href: "/financial-reports", icon: TrendingUp },
-  { name: "Account Reports", href: "/account-reports", icon: ClipboardList },
-]
+import { getCurrentUser, isAdmin, canViewAccountingData, isRegularUser } from "@/lib/auth-utils"
+import { useLanguage } from "@/lib/language-context"
 
 export default function Navigation() {
   const pathname = usePathname()
+  const { language, setLanguage, t } = useLanguage()
+  
+  const navigation = [
+    { name: t("nav.dashboard"), key: "dashboard", href: "/", icon: Home, requiresAccountingView: true },
+    { name: t("nav.chartOfAccounts"), key: "chartOfAccounts", href: "/chart-of-accounts", icon: BookOpen, requiresAccountingView: true },
+    { name: t("nav.journalEntries"), key: "journalEntries", href: "/journal-entries", icon: FileText, requiresAccountingView: true },
+    { name: t("nav.projects"), key: "projects", href: "/project-management", icon: Folder, adminOnly: true },
+    { name: t("nav.purchaseOrders"), key: "purchaseOrders", href: "/purchase-orders", icon: ShoppingCart },
+    { name: t("nav.generalLedger"), key: "generalLedger", href: "/general-ledger", icon: BarChart3, requiresAccountingView: true },
+    { name: t("nav.trialBalance"), key: "trialBalance", href: "/trial-balance", icon: Calculator, requiresAccountingView: true },
+    { name: t("nav.financialReports"), key: "financialReports", href: "/financial-reports", icon: TrendingUp, requiresAccountingView: true },
+    { name: t("nav.accountReports"), key: "accountReports", href: "/account-reports", icon: ClipboardList, requiresAccountingView: true },
+  ]
 
   // Don't show navigation on login page
   if (pathname === '/login') {
@@ -35,7 +37,7 @@ export default function Navigation() {
           <div className="flex items-center gap-6">
             <Link href={isRegularUser(getCurrentUser()) ? "/purchase-orders" : "/"} className="flex items-center gap-2 font-semibold">
               <Calculator className="h-6 w-6" />
-              <span>Accounting System</span>
+              <span>{language === "ar" ? "نظام المحاسبة" : "Accounting System"}</span>
             </Link>
 
             {/* Desktop Navigation */}
@@ -43,7 +45,7 @@ export default function Navigation() {
               {navigation.map((item) => {
                 const currentUser = getCurrentUser()
                 // Regular users can only see Purchase Orders
-                if (isRegularUser(currentUser) && item.name !== "Purchase Orders") {
+                if (isRegularUser(currentUser) && item.key !== "purchaseOrders") {
                   return null
                 }
                 // Skip admin-only items if user is not admin
@@ -56,7 +58,7 @@ export default function Navigation() {
                 }
                 const Icon = item.icon
                 return (
-                  <Link key={item.name} href={item.href}>
+                  <Link key={item.key} href={item.href}>
                     <Button variant={pathname === item.href ? "default" : "ghost"} size="sm" className="gap-2">
                       <Icon className="h-4 w-4" />
                       {item.name}
@@ -69,12 +71,31 @@ export default function Navigation() {
 
           {/* User Selector */}
           <div className="flex items-center gap-4">
+            {/* Language Switcher */}
+            <div className="flex items-center gap-1 border rounded-md">
+              <Button
+                variant={language === "en" ? "default" : "ghost"}
+                size="sm"
+                onClick={() => setLanguage("en")}
+                className="rounded-r-none"
+              >
+                EN
+              </Button>
+              <Button
+                variant={language === "ar" ? "default" : "ghost"}
+                size="sm"
+                onClick={() => setLanguage("ar")}
+                className="rounded-l-none"
+              >
+                AR
+              </Button>
+            </div>
             <UserSelector />
             {isAdmin(getCurrentUser()) && (
               <Link href="/user-management">
                 <Button variant="ghost" size="sm">
                   <Users className="h-4 w-4 mr-2" />
-                  Users
+                  {t("nav.users")}
                 </Button>
               </Link>
             )}
@@ -93,7 +114,7 @@ export default function Navigation() {
                   {navigation.map((item) => {
                     const currentUser = getCurrentUser()
                     // Regular users can only see Purchase Orders
-                    if (isRegularUser(currentUser) && item.name !== "Purchase Orders") {
+                    if (isRegularUser(currentUser) && item.key !== "purchaseOrders") {
                       return null
                     }
                     // Skip admin-only items if user is not admin
@@ -106,7 +127,7 @@ export default function Navigation() {
                     }
                     const Icon = item.icon
                     return (
-                      <Link key={item.name} href={item.href}>
+                      <Link key={item.key} href={item.href}>
                         <Button
                           variant={pathname === item.href ? "default" : "ghost"}
                           size="sm"
@@ -126,7 +147,7 @@ export default function Navigation() {
                         className="w-full justify-start gap-2"
                       >
                         <Users className="h-4 w-4" />
-                        User Management
+                        {t("nav.users")}
                       </Button>
                     </Link>
                   )}

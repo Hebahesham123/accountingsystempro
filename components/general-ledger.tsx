@@ -11,6 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge"
 import { type Account, AccountingService } from "@/lib/accounting-utils"
 import { useToast } from "@/hooks/use-toast"
+import { useLanguage } from "@/lib/language-context"
 
 interface GeneralLedgerEntry {
   id: string
@@ -34,6 +35,7 @@ interface GeneralLedgerEntry {
 }
 
 export default function GeneralLedger() {
+  const { language, t } = useLanguage()
   const [accounts, setAccounts] = useState<Account[]>([])
   const [accountBalances, setAccountBalances] = useState<Map<string, { ownBalance: number; totalBalance: number }>>(new Map())
   const [selectedAccountId, setSelectedAccountId] = useState<string>("")
@@ -212,31 +214,31 @@ export default function GeneralLedger() {
     <div className="w-full space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">General Ledger</h1>
-          <p className="text-muted-foreground">View detailed transaction history for any account</p>
+          <h1 className="text-3xl font-bold">{t("gl.title")}</h1>
+          <p className="text-muted-foreground">{t("gl.viewTransactionHistory")}</p>
         </div>
         <Button onClick={exportToCSV} variant="outline" disabled={!selectedAccountId || filteredEntries.length === 0}>
           <Download className="h-4 w-4 mr-2" />
-          Export CSV
+          {t("gl.exportCSV")}
         </Button>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>Account Selection & Filters</CardTitle>
-          <CardDescription>Select an account and date range to view its general ledger</CardDescription>
+          <CardTitle>{language === "ar" ? "اختيار الحساب والمرشحات" : "Account Selection & Filters"}</CardTitle>
+          <CardDescription>{t("gl.selectAccountToView")}</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
             <div className="space-y-2 lg:col-span-2">
-              <Label htmlFor="account">Account</Label>
+              <Label htmlFor="account">{t("gl.selectAccount")}</Label>
               <Select value={selectedAccountId || "placeholder"} onValueChange={handleAccountChange}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Select an account" />
+                  <SelectValue placeholder={t("gl.selectAccount")} />
                 </SelectTrigger>
                 <SelectContent className="max-h-[400px]">
                   <SelectItem value="placeholder" disabled>
-                    Select an account
+                    {t("gl.selectAccount")}
                   </SelectItem>
                   {accounts
                     .sort((a, b) => a.code.localeCompare(b.code))
@@ -268,12 +270,12 @@ export default function GeneralLedger() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="start_date">Start Date</Label>
+              <Label htmlFor="start_date">{t("je.startDate")}</Label>
               <Input id="start_date" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="end_date">End Date</Label>
+              <Label htmlFor="end_date">{t("je.endDate")}</Label>
               <Input id="end_date" type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
             </div>
 
@@ -281,7 +283,7 @@ export default function GeneralLedger() {
               <Label>&nbsp;</Label>
               <Button onClick={loadGeneralLedger} disabled={loading || !selectedAccountId} className="w-full">
                 <Filter className="h-4 w-4 mr-2" />
-                {loading ? "Loading..." : "Load Ledger"}
+                {loading ? t("common.loading") : t("gl.loadLedger")}
               </Button>
             </div>
           </div>
@@ -289,12 +291,12 @@ export default function GeneralLedger() {
           {selectedAccountId && (
             <div className="mt-4">
               <div className="space-y-2">
-                <Label htmlFor="search">Search Transactions</Label>
+                <Label htmlFor="search">{t("gl.searchTransactions")}</Label>
                 <div className="relative">
                   <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                   <Input
                     id="search"
-                    placeholder="Search by description, entry number, or reference..."
+                    placeholder={language === "ar" ? "البحث بالوصف أو رقم القيد أو المرجع..." : "Search by description, entry number, or reference..."}
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     className="pl-10"
@@ -315,19 +317,19 @@ export default function GeneralLedger() {
                   General Ledger - {getSelectedAccount()?.code} {getSelectedAccount()?.name}
                   {selectedAccountHasChildren() && (
                     <Badge variant="outline" className="ml-2">
-                      Includes sub-accounts
+                      {language === "ar" ? "يتضمن الحسابات الفرعية" : "Includes sub-accounts"}
                     </Badge>
                   )}
                 </CardTitle>
                 <CardDescription>
-                  Transaction history from {formatDate(startDate)} to {formatDate(endDate)}
-                  {searchTerm && ` • Filtered by: "${searchTerm}"`}
-                  {selectedAccountHasChildren() && " • Showing transactions from this account and all sub-accounts"}
+                  {language === "ar" ? `سجل المعاملات من ${formatDate(startDate)} إلى ${formatDate(endDate)}` : `Transaction history from ${formatDate(startDate)} to ${formatDate(endDate)}`}
+                  {searchTerm && (language === "ar" ? ` • تم التصفية بواسطة: "${searchTerm}"` : ` • Filtered by: "${searchTerm}"`)}
+                  {selectedAccountHasChildren() && (language === "ar" ? " • عرض المعاملات من هذا الحساب وجميع الحسابات الفرعية" : " • Showing transactions from this account and all sub-accounts")}
                 </CardDescription>
               </div>
               <div className="text-right">
                 <Badge variant="outline" className="text-sm">
-                  {filteredEntries.length} transactions
+                  {filteredEntries.length} {language === "ar" ? "معاملة" : "transactions"}
                 </Badge>
               </div>
             </div>
@@ -337,14 +339,14 @@ export default function GeneralLedger() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Entry #</TableHead>
-                    {selectedAccountHasChildren() && <TableHead>Account</TableHead>}
-                    <TableHead>Description</TableHead>
-                    <TableHead>Reference</TableHead>
-                    <TableHead className="text-right">Debit</TableHead>
-                    <TableHead className="text-right">Credit</TableHead>
-                    <TableHead className="text-right">Balance</TableHead>
+                    <TableHead>{t("common.date")}</TableHead>
+                    <TableHead>{t("gl.entryNumber")}</TableHead>
+                    {selectedAccountHasChildren() && <TableHead>{t("gl.selectAccount")}</TableHead>}
+                    <TableHead>{t("common.description")}</TableHead>
+                    <TableHead>{t("gl.reference")}</TableHead>
+                    <TableHead className="text-right">{t("gl.debit")}</TableHead>
+                    <TableHead className="text-right">{t("gl.credit")}</TableHead>
+                    <TableHead className="text-right">{t("gl.runningBalance")}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -360,7 +362,7 @@ export default function GeneralLedger() {
                               <span className="text-xs text-muted-foreground">{entry.account_name}</span>
                             </div>
                           ) : (
-                            <Badge variant="outline" className="text-xs">Parent</Badge>
+                            <Badge variant="outline" className="text-xs">{t("general.parent")}</Badge>
                           )}
                         </TableCell>
                       )}
@@ -369,7 +371,7 @@ export default function GeneralLedger() {
                           <div className="font-medium">{entry.description || entry.journal_entries.description}</div>
                           {entry.description && entry.description !== entry.journal_entries.description && (
                             <div className="text-sm text-muted-foreground">
-                              Entry: {entry.journal_entries.description}
+                              {language === "ar" ? "القيد: " : "Entry: "}{entry.journal_entries.description}
                             </div>
                           )}
                         </div>
@@ -392,7 +394,7 @@ export default function GeneralLedger() {
                   {/* Totals Row */}
                   <TableRow className="bg-gray-50 font-semibold">
                     <TableCell colSpan={selectedAccountHasChildren() ? 5 : 4} className="text-right">
-                      <strong>TOTALS:</strong>
+                      <strong>{t("general.totals")}</strong>
                     </TableCell>
                     <TableCell className="text-right">
                       <strong>{formatCurrency(getTotalDebits())}</strong>

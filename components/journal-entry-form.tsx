@@ -17,6 +17,7 @@ import { type Account, AccountingService } from "@/lib/accounting-utils"
 import { useToast } from "@/hooks/use-toast"
 import { getCurrentUser, canEditAccountingData } from "@/lib/auth-utils"
 import { useRouter } from "next/navigation"
+import { useLanguage } from "@/lib/language-context"
 
 interface JournalLine {
   id: string
@@ -36,6 +37,7 @@ interface HierarchicalAccount extends Account {
 export default function JournalEntryForm() {
   const router = useRouter()
   const currentUser = getCurrentUser()
+  const { language, t } = useLanguage()
   const [accounts, setAccounts] = useState<Account[]>([])
   const [hierarchicalAccounts, setHierarchicalAccounts] = useState<HierarchicalAccount[]>([])
   const [accountBalances, setAccountBalances] = useState<Map<string, { ownBalance: number; totalBalance: number }>>(new Map())
@@ -601,9 +603,9 @@ export default function JournalEntryForm() {
       <div className="flex justify-center items-center p-8">
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-          <p>Loading accounts...</p>
-          <p className="text-sm text-muted-foreground mt-2">This may take a few seconds</p>
-          <p className="text-xs text-muted-foreground mt-1">If this takes too long, check the browser console for errors</p>
+          <p>{t("common.loading")}</p>
+          <p className="text-sm text-muted-foreground mt-2">{language === "ar" ? "قد يستغرق هذا بضع ثوانٍ" : "This may take a few seconds"}</p>
+          <p className="text-xs text-muted-foreground mt-1">{language === "ar" ? "إذا استغرق هذا وقتًا طويلاً، تحقق من وحدة تحكم المتصفح للأخطاء" : "If this takes too long, check the browser console for errors"}</p>
         </div>
       </div>
     )
@@ -615,11 +617,12 @@ export default function JournalEntryForm() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Calculator className="h-5 w-5" />
-            Create Journal Entry
+            {t("je.createNew")}
           </CardTitle>
           <CardDescription>
-            Create a journal entry with multiple lines. Each line can be either debit or credit.
-            You can select any account or sub-account from the chart of accounts.
+            {language === "ar" 
+              ? "إنشاء قيد يومية ببنود متعددة. يمكن أن يكون كل بند إما مدين أو دائن. يمكنك اختيار أي حساب أو حساب فرعي من دليل الحسابات."
+              : "Create a journal entry with multiple lines. Each line can be either debit or credit. You can select any account or sub-account from the chart of accounts."}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -627,7 +630,7 @@ export default function JournalEntryForm() {
             {/* Entry Header */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="entry_date">Entry Date *</Label>
+                <Label htmlFor="entry_date">{t("je.date")} *</Label>
                 <Input
                   id="entry_date"
                   type="date"
@@ -637,7 +640,7 @@ export default function JournalEntryForm() {
                 />
               </div>
               <div className="space-y-2">
-                <Label>Entry Number</Label>
+                <Label>{t("je.entryNumber")}</Label>
                 <div className="flex items-center h-10 px-3 py-2 border border-input bg-muted rounded-md">
                   <Badge variant="outline" className="font-mono">
                     {entryNumber || "Loading..."}
@@ -648,19 +651,19 @@ export default function JournalEntryForm() {
                 <Label>Balance Status</Label>
                 <div className="flex items-center h-10">
                   <Badge variant={isBalanced() ? "default" : "destructive"}>
-                    {isBalanced() ? "Balanced ✓" : "Not Balanced ✗"}
+                    {isBalanced() ? t("je.balanced") + " ✓" : t("je.notBalanced") + " ✗"}
                   </Badge>
                 </div>
               </div>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="description">Description *</Label>
+              <Label htmlFor="description">{t("common.description")} *</Label>
               <Textarea
                 id="description"
                 value={formData.description}
                 onChange={(e) => handleInputChange("description", e.target.value)}
-                placeholder="Describe this journal entry..."
+                placeholder={language === "ar" ? "وصف قيد اليومية..." : "Describe this journal entry..."}
                 required
               />
             </div>
@@ -670,10 +673,10 @@ export default function JournalEntryForm() {
             {/* Journal Lines */}
             <div className="space-y-4">
               <div className="flex items-center justify-between">
-                <h3 className="text-lg font-semibold">Journal Entry Lines</h3>
+                <h3 className="text-lg font-semibold">{language === "ar" ? "بنود قيد اليومية" : "Journal Entry Lines"}</h3>
                 <Button type="button" variant="outline" onClick={addLine}>
                   <Plus className="h-4 w-4 mr-2" />
-                  Add Line
+                  {t("je.addLine")}
                 </Button>
               </div>
 
@@ -684,7 +687,7 @@ export default function JournalEntryForm() {
                   return (
                     <div key={line.id} className="border rounded-lg p-4 bg-gray-50">
                       <div className="flex items-center justify-between mb-3">
-                        <Badge variant="outline">Line {index + 1}</Badge>
+                        <Badge variant="outline">{t("je.lines")} {index + 1}</Badge>
                         {lines.length > 2 && (
                           <Button type="button" variant="ghost" size="sm" onClick={() => removeLine(line.id)}>
                             <Trash2 className="h-4 w-4" />
@@ -694,7 +697,7 @@ export default function JournalEntryForm() {
 
                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                         <div className="space-y-2">
-                          <Label>Account *</Label>
+                          <Label>{t("je.selectAccount")} *</Label>
                           <Popover
                             open={openPopovers.has(line.id)}
                             onOpenChange={open => togglePopover(line.id, open)}
@@ -720,7 +723,7 @@ export default function JournalEntryForm() {
                                     )}
                                   </div>
                                 ) : (
-                                  "Select account..."
+                                  t("je.selectAccount") + "..."
                                 )}
                               </Button>
                             </PopoverTrigger>
@@ -773,7 +776,7 @@ export default function JournalEntryForm() {
                         </div>
 
                         <div className="space-y-2">
-                          <Label>Type *</Label>
+                          <Label>{language === "ar" ? "النوع" : "Type"} *</Label>
                           <Select
                             value={line.type}
                             onValueChange={(value: "debit" | "credit") => handleLineChange(line.id, "type", value)}
@@ -784,13 +787,13 @@ export default function JournalEntryForm() {
                             <SelectContent>
                               <SelectItem value="debit">
                                 <div className="flex items-center gap-2">
-                                  <Badge className="bg-green-100 text-green-800">Debit</Badge>
+                                  <Badge className="bg-green-100 text-green-800">{t("general.debit")}</Badge>
                                   <span>Dr</span>
                                 </div>
                               </SelectItem>
                               <SelectItem value="credit">
                                 <div className="flex items-center gap-2">
-                                  <Badge className="bg-red-100 text-red-800">Credit</Badge>
+                                  <Badge className="bg-red-100 text-red-800">{t("general.credit")}</Badge>
                                   <span>Cr</span>
                                 </div>
                               </SelectItem>
@@ -799,7 +802,7 @@ export default function JournalEntryForm() {
                         </div>
 
                         <div className="space-y-2">
-                          <Label>Amount *</Label>
+                          <Label>{t("common.amount")} *</Label>
                           <Input
                             type="number"
                             step="0.01"
@@ -831,16 +834,16 @@ export default function JournalEntryForm() {
                         </div>
 
                         <div className="space-y-2">
-                          <Label>Project</Label>
+                          <Label>{t("je.project")}</Label>
                           <Select
                             value={line.project_id || "none"}
                             onValueChange={(value) => handleLineChange(line.id, "project_id", value === "none" ? "" : value)}
                           >
                             <SelectTrigger>
-                              <SelectValue placeholder="Select project" />
+                              <SelectValue placeholder={t("je.selectProject")} />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="none">None</SelectItem>
+                              <SelectItem value="none">{t("general.none")}</SelectItem>
                               {projects.map((project) => (
                                 <SelectItem key={project.id} value={project.id}>
                                   {project.name}
@@ -853,7 +856,7 @@ export default function JournalEntryForm() {
 
                       {/* Image Upload Section */}
                       <div className="mt-4 space-y-2">
-                        <Label>Supporting Document</Label>
+                        <Label>{language === "ar" ? "مستند مساند" : "Supporting Document"}</Label>
                         <div className="flex items-center gap-2">
                           {line.image_data ? (
                             <div className="flex items-center gap-3">
@@ -951,9 +954,9 @@ export default function JournalEntryForm() {
                                 onClick={() => document.getElementById(`image-upload-${line.id}`)?.click()}
                               >
                                 <Upload className="h-4 w-4 mr-2" />
-                                Upload Image
+                                {language === "ar" ? "رفع صورة" : "Upload Image"}
                               </Button>
-                              <span className="text-sm text-muted-foreground">Receipt, invoice, etc.</span>
+                              <span className="text-sm text-muted-foreground">{language === "ar" ? "إيصال، فاتورة، إلخ" : "Receipt, invoice, etc."}</span>
                             </div>
                           )}
                         </div>
@@ -965,23 +968,23 @@ export default function JournalEntryForm() {
 
               {/* Totals Summary */}
               <div className="border rounded-lg p-4 bg-blue-50">
-                <h4 className="font-medium mb-3">Entry Summary</h4>
+                <h4 className="font-medium mb-3">{language === "ar" ? "ملخص القيد" : "Entry Summary"}</h4>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
                   <div>
-                    <div className="font-medium text-green-700">Total Debits</div>
+                    <div className="font-medium text-green-700">{t("je.totalDebit")}</div>
                     <div className="text-2xl font-bold">${getTotalDebits().toFixed(2)}</div>
                   </div>
                   <div>
-                    <div className="font-medium text-red-700">Total Credits</div>
+                    <div className="font-medium text-red-700">{t("je.totalCredit")}</div>
                     <div className="text-2xl font-bold">${getTotalCredits().toFixed(2)}</div>
                   </div>
                   <div>
-                    <div className="font-medium">Difference</div>
+                    <div className="font-medium">{t("je.difference")}</div>
                     <div className="text-2xl font-bold">
                       ${Math.abs(getTotalDebits() - getTotalCredits()).toFixed(2)}
                     </div>
                     <Badge variant={isBalanced() ? "default" : "destructive"} className="mt-1">
-                      {isBalanced() ? "Balanced" : "Not Balanced"}
+                      {isBalanced() ? t("je.balanced") : t("je.notBalanced")}
                     </Badge>
                   </div>
                 </div>
@@ -992,11 +995,11 @@ export default function JournalEntryForm() {
             <div className="flex justify-end gap-3">
               <Button type="button" variant="outline" onClick={resetForm}>
                 <RotateCcw className="h-4 w-4 mr-2" />
-                Reset
+                {t("general.reset")}
               </Button>
               <Button type="submit" disabled={loading || !isBalanced()}>
                 <Save className="h-4 w-4 mr-2" />
-                {loading ? "Creating..." : "Create Entry"}
+                {loading ? (language === "ar" ? "جاري الإنشاء..." : "Creating...") : t("je.create")}
               </Button>
             </div>
           </form>

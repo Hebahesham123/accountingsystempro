@@ -32,8 +32,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { useToast } from "@/hooks/use-toast"
 import { supabase } from "@/lib/supabase"
 import { type User as UserType, type UserRole } from "@/lib/auth-utils"
+import { useLanguage } from "@/lib/language-context"
 
 export default function UserManagement() {
+  const { language, t } = useLanguage()
   const [users, setUsers] = useState<UserType[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -232,9 +234,9 @@ export default function UserManagement() {
             <div>
               <CardTitle className="flex items-center gap-2">
                 <UserIcon className="h-5 w-5" />
-                User Management
+                {t("user.title")}
               </CardTitle>
-              <CardDescription>Manage system users and their permissions</CardDescription>
+              <CardDescription>{t("user.managePermissions")}</CardDescription>
             </div>
             <Dialog open={isDialogOpen} onOpenChange={(open) => {
               setIsDialogOpen(open)
@@ -243,30 +245,30 @@ export default function UserManagement() {
               <DialogTrigger asChild>
                 <Button>
                   <Plus className="h-4 w-4 mr-2" />
-                  Add User
+                  {t("user.new")}
                 </Button>
               </DialogTrigger>
               <DialogContent>
                 <form onSubmit={handleSubmit}>
                   <DialogHeader>
-                    <DialogTitle>{editingUser ? "Edit User" : "Add New User"}</DialogTitle>
+                    <DialogTitle>{editingUser ? t("user.edit") : t("user.create")}</DialogTitle>
                     <DialogDescription>
-                      {editingUser ? "Update user information and permissions" : "Create a new user account"}
+                      {editingUser ? t("user.updatePermissions") : t("user.createAccount")}
                     </DialogDescription>
                   </DialogHeader>
                   <div className="space-y-4 py-4">
                     <div className="space-y-2">
-                      <Label htmlFor="name">Name</Label>
+                      <Label htmlFor="name">{t("common.name")}</Label>
                       <Input
                         id="name"
                         value={userFormData.name}
                         onChange={(e) => setUserFormData({ ...userFormData, name: e.target.value })}
-                        placeholder="User name"
+                        placeholder={t("user.userName")}
                         required
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="email">Email</Label>
+                      <Label htmlFor="email">{t("common.email")}</Label>
                       <Input
                         id="email"
                         type="email"
@@ -277,7 +279,7 @@ export default function UserManagement() {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="role">Role</Label>
+                      <Label htmlFor="role">{t("common.role")}</Label>
                       <Select
                         value={userFormData.role}
                         onValueChange={(value) => setUserFormData({ ...userFormData, role: value as UserRole })}
@@ -286,30 +288,30 @@ export default function UserManagement() {
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="admin">Admin (Full Access)</SelectItem>
-                          <SelectItem value="accountant">Accountant (View & Edit)</SelectItem>
-                          <SelectItem value="user">User (View Only)</SelectItem>
+                          <SelectItem value="admin">{t("user.adminFullAccess")}</SelectItem>
+                          <SelectItem value="accountant">{t("user.accountantViewEdit")}</SelectItem>
+                          <SelectItem value="user">{t("user.userViewOnly")}</SelectItem>
                         </SelectContent>
                       </Select>
                       <p className="text-xs text-muted-foreground">
-                        {userFormData.role === "admin" && "Can view and edit everything"}
-                        {userFormData.role === "accountant" && "Can view and edit accounting data"}
-                        {userFormData.role === "user" && "Can only view data, cannot edit"}
+                        {userFormData.role === "admin" && t("user.canViewEditEverything")}
+                        {userFormData.role === "accountant" && t("user.canViewEditAccounting")}
+                        {userFormData.role === "user" && t("user.canOnlyView")}
                       </p>
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="pin">PIN {editingUser && "(leave blank to keep current)"}</Label>
+                      <Label htmlFor="pin">{t("user.pin")} {editingUser && t("user.leaveBlank")}</Label>
                       <Input
                         id="pin"
                         type="password"
                         value={userFormData.pin}
                         onChange={(e) => setUserFormData({ ...userFormData, pin: e.target.value })}
-                        placeholder="Enter PIN (4-10 digits)"
+                        placeholder={t("user.enterPin")}
                         maxLength={10}
                         required={!editingUser}
                       />
                       <p className="text-xs text-muted-foreground">
-                        PIN must be at least 4 characters long
+                        {t("user.pinMinLength")}
                       </p>
                     </div>
                   </div>
@@ -318,10 +320,10 @@ export default function UserManagement() {
                       setIsDialogOpen(false)
                       resetForm()
                     }}>
-                      Cancel
+                      {t("general.cancel")}
                     </Button>
                     <Button type="submit" disabled={saving}>
-                      {saving ? "Saving..." : editingUser ? "Update" : "Create"}
+                      {saving ? t("general.saving") : editingUser ? t("general.update") : t("general.create")}
                     </Button>
                   </DialogFooter>
                 </form>
@@ -333,22 +335,22 @@ export default function UserManagement() {
           {loading ? (
             <div className="text-center p-8">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-              <p>Loading users...</p>
+              <p>{t("user.loading")}</p>
             </div>
           ) : users.length === 0 ? (
             <div className="text-center p-8 text-muted-foreground">
               <UserIcon className="h-12 w-12 mx-auto mb-4 opacity-50" />
-              <p>No users found. Create your first user to get started.</p>
+              <p>{t("user.noUsers")}</p>
             </div>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Role</TableHead>
-                  <TableHead>Created</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                  <TableHead>{t("common.name")}</TableHead>
+                  <TableHead>{t("common.email")}</TableHead>
+                  <TableHead>{t("common.role")}</TableHead>
+                  <TableHead>{t("common.createdAt")}</TableHead>
+                  <TableHead className="text-right">{t("common.actions")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>

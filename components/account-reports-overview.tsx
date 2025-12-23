@@ -13,9 +13,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { AccountingService, type AccountSummaryReport } from "@/lib/accounting-utils"
 import { useToast } from "@/hooks/use-toast"
+import { useLanguage } from "@/lib/language-context"
 import Link from "next/link"
 
 export default function AccountReportsOverview() {
+  const { language, t } = useLanguage()
   const [accounts, setAccounts] = useState<AccountSummaryReport[]>([])
   const [filteredAccounts, setFilteredAccounts] = useState<AccountSummaryReport[]>([])
   const [loading, setLoading] = useState(false)
@@ -324,7 +326,7 @@ export default function AccountReportsOverview() {
         <CardContent className="pt-6">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
             <div className="space-y-2">
-              <Label htmlFor="start_date">Start Date</Label>
+              <Label htmlFor="start_date">{t("je.startDate")}</Label>
               <Input
                 id="start_date"
                 type="date"
@@ -333,7 +335,7 @@ export default function AccountReportsOverview() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="end_date">End Date</Label>
+              <Label htmlFor="end_date">{t("je.endDate")}</Label>
               <Input
                 id="end_date"
                 type="date"

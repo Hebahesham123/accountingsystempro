@@ -11,6 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Table, TableBody, TableCell, TableRow } from "@/components/ui/table"
 import { AccountingService, type CashFlowStatement, type Account } from "@/lib/accounting-utils"
 import { useToast } from "@/hooks/use-toast"
+import { useLanguage } from "@/lib/language-context"
 
 type BalanceSheetAccount = {
   name: string
@@ -24,6 +25,7 @@ type BalanceSheetAccount = {
 }
 
 export default function FinancialReports() {
+  const { language, t } = useLanguage()
   const [balanceSheet, setBalanceSheet] = useState<any>(null)
   const [incomeStatement, setIncomeStatement] = useState<any>(null)
   const [cashFlowStatement, setCashFlowStatement] = useState<CashFlowStatement | null>(null)
@@ -471,10 +473,10 @@ export default function FinancialReports() {
 
       <Tabs defaultValue="balance-sheet" className="w-full">
         <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="balance-sheet">Balance Sheet</TabsTrigger>
-          <TabsTrigger value="income-statement">Income Statement</TabsTrigger>
-          <TabsTrigger value="cash-flow">Cash Flow</TabsTrigger>
-          <TabsTrigger value="account-reports">Account Reports</TabsTrigger>
+          <TabsTrigger value="balance-sheet">{t("fr.balanceSheet")}</TabsTrigger>
+          <TabsTrigger value="income-statement">{t("fr.incomeStatement")}</TabsTrigger>
+          <TabsTrigger value="cash-flow">{t("fr.cashFlow")}</TabsTrigger>
+          <TabsTrigger value="account-reports">{t("fr.accountReports")}</TabsTrigger>
         </TabsList>
 
         <TabsContent value="balance-sheet" className="space-y-4">
@@ -484,18 +486,18 @@ export default function FinancialReports() {
                 <div>
                   <CardTitle className="flex items-center gap-2">
                     <PieChart className="h-5 w-5" />
-                    Balance Sheet
+                    {t("fr.balanceSheet")}
                   </CardTitle>
-                  <CardDescription>Assets = Liabilities + Equity as of a specific date</CardDescription>
+                  <CardDescription>{t("fr.assetsEquals")}</CardDescription>
                 </div>
                 <div className="flex gap-2">
                   <Button onClick={exportBalanceSheet} variant="outline" size="sm" disabled={!balanceSheet}>
                     <Download className="h-4 w-4 mr-2" />
-                    Export CSV
+                    {t("fr.exportCSV")}
                   </Button>
                   <Button onClick={printBalanceSheet} variant="outline" size="sm" disabled={!balanceSheet}>
                     <Printer className="h-4 w-4 mr-2" />
-                    Print
+                    {t("fr.print")}
                   </Button>
                 </div>
               </div>
@@ -503,7 +505,7 @@ export default function FinancialReports() {
             <CardContent>
               <div className="flex items-end gap-4 mb-6 p-4 bg-gray-50 rounded-lg">
                 <div className="space-y-2">
-                  <Label htmlFor="as_of_date">As of Date</Label>
+                  <Label htmlFor="as_of_date">{t("fr.asOf")}</Label>
                   <Input id="as_of_date" type="date" value={asOfDate} onChange={(e) => setAsOfDate(e.target.value)} />
                 </div>
                 <Button onClick={loadBalanceSheet} disabled={loading}>
@@ -514,9 +516,9 @@ export default function FinancialReports() {
               {balanceSheet && (
                 <div className="space-y-6">
                   <div className="text-center">
-                    <h2 className="text-xl font-bold">Company Name</h2>
-                    <h3 className="text-lg font-semibold">Balance Sheet</h3>
-                    <p className="text-muted-foreground">As of {new Date(asOfDate).toLocaleDateString()}</p>
+                    <h2 className="text-xl font-bold">{language === "ar" ? "اسم الشركة" : "Company Name"}</h2>
+                    <h3 className="text-lg font-semibold">{t("fr.balanceSheet")}</h3>
+                    <p className="text-muted-foreground">{t("fr.asOf")} {new Date(asOfDate).toLocaleDateString()}</p>
                   </div>
 
                   {/* Expand/Collapse Controls */}
@@ -533,7 +535,7 @@ export default function FinancialReports() {
                         setExpandedEquity(new Set(allEquityCodes))
                       }}
                     >
-                      Expand All
+                      {language === "ar" ? "توسيع الكل" : "Expand All"}
                     </Button>
                     <Button 
                       variant="outline" 
@@ -544,7 +546,7 @@ export default function FinancialReports() {
                         setExpandedEquity(new Set())
                       }}
                     >
-                      Collapse All
+                      {language === "ar" ? "طي الكل" : "Collapse All"}
                     </Button>
                   </div>
 
@@ -553,7 +555,7 @@ export default function FinancialReports() {
                     <div>
                       <h3 className="text-lg font-semibold mb-4 text-green-700 flex items-center gap-2">
                         <FolderOpen className="h-5 w-5" />
-                        ASSETS
+                        {t("fr.assets")}
                       </h3>
                       <div className="border rounded-lg overflow-hidden">
                         <Table>
@@ -575,7 +577,7 @@ export default function FinancialReports() {
                               </TableRow>
                             )}
                             <TableRow className="font-semibold border-t-2 bg-green-50">
-                              <TableCell className="font-bold">TOTAL ASSETS</TableCell>
+                                <TableCell className="font-bold">{t("fr.totalAssets")}</TableCell>
                               <TableCell className="text-right font-bold text-green-700">
                                 {formatCurrency(balanceSheet.totalAssets)}
                               </TableCell>
@@ -609,12 +611,12 @@ export default function FinancialReports() {
                               ) : (
                                 <TableRow>
                                   <TableCell colSpan={2} className="text-center text-muted-foreground">
-                                    No liability accounts with balances
+                                    {language === "ar" ? "لا توجد حسابات خصوم بأرصدة" : "No liability accounts with balances"}
                                   </TableCell>
                                 </TableRow>
                               )}
                               <TableRow className="font-semibold border-t-2 bg-red-50">
-                                <TableCell className="font-bold">TOTAL LIABILITIES</TableCell>
+                                <TableCell className="font-bold">{t("fr.totalLiabilities")}</TableCell>
                                 <TableCell className="text-right font-bold text-red-700">
                                   {formatCurrency(balanceSheet.totalLiabilities)}
                                 </TableCell>
@@ -625,7 +627,7 @@ export default function FinancialReports() {
 
                         {/* Equity */}
                         <div className="border rounded-lg overflow-hidden">
-                          <div className="bg-blue-50 px-4 py-2 font-medium text-blue-700">EQUITY</div>
+                          <div className="bg-blue-50 px-4 py-2 font-medium text-blue-700">{t("fr.equity")}</div>
                           <Table>
                             <TableBody>
                               {balanceSheet.equity.length > 0 ? (
@@ -644,7 +646,7 @@ export default function FinancialReports() {
                                       return (
                                         <TableRow key="net-income" className="bg-blue-100">
                                           <TableCell className="font-medium pl-4">
-                                            Net Income
+                                            {t("fr.netIncome")}
                                           </TableCell>
                                           <TableCell className="text-right font-medium text-blue-800">
                                             {formatCurrency(equityItem.amount)}
@@ -662,7 +664,7 @@ export default function FinancialReports() {
                                 </TableRow>
                               )}
                               <TableRow className="font-semibold border-t-2 bg-blue-50">
-                                <TableCell className="font-bold">TOTAL EQUITY</TableCell>
+                                <TableCell className="font-bold">{t("fr.totalEquity")}</TableCell>
                                 <TableCell className="text-right font-bold text-blue-700">
                                   {formatCurrency(balanceSheet.totalEquity)}
                                 </TableCell>
@@ -696,9 +698,9 @@ export default function FinancialReports() {
                 <div>
                   <CardTitle className="flex items-center gap-2">
                     <TrendingUp className="h-5 w-5" />
-                    Income Statement
+                    {t("fr.incomeStatement")}
                   </CardTitle>
-                  <CardDescription>Revenue - Expenses = Net Income for a period</CardDescription>
+                  <CardDescription>{t("fr.revenueMinusExpenses")}</CardDescription>
                 </div>
                 <div className="flex gap-2">
                   <Button onClick={exportIncomeStatement} variant="outline" size="sm" disabled={!incomeStatement}>
@@ -715,26 +717,25 @@ export default function FinancialReports() {
             <CardContent>
               <div className="flex items-end gap-4 mb-6 p-4 bg-gray-50 rounded-lg">
                 <div className="space-y-2">
-                  <Label htmlFor="start_date">Start Date</Label>
+                  <Label htmlFor="start_date">{t("je.startDate")}</Label>
                   <Input id="start_date" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="end_date">End Date</Label>
+                  <Label htmlFor="end_date">{t("je.endDate")}</Label>
                   <Input id="end_date" type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
                 </div>
                 <Button onClick={loadIncomeStatement} disabled={loading}>
-                  {loading ? "Loading..." : "Generate Report"}
+                  {loading ? t("common.loading") : t("fr.generate")}
                 </Button>
               </div>
 
               {incomeStatement && (
                 <div className="space-y-6">
                   <div className="text-center">
-                    <h2 className="text-xl font-bold">Company Name</h2>
-                    <h3 className="text-lg font-semibold">Income Statement</h3>
+                    <h2 className="text-xl font-bold">{language === "ar" ? "اسم الشركة" : "Company Name"}</h2>
+                    <h3 className="text-lg font-semibold">{t("fr.incomeStatement")}</h3>
                     <p className="text-muted-foreground">
-                      For the period {new Date(startDate).toLocaleDateString()} to{" "}
-                      {new Date(endDate).toLocaleDateString()}
+                      {language === "ar" ? `للفترة من ${new Date(startDate).toLocaleDateString()} إلى ${new Date(endDate).toLocaleDateString()}` : `For the period ${new Date(startDate).toLocaleDateString()} to ${new Date(endDate).toLocaleDateString()}`}
                     </p>
                   </div>
 
@@ -751,7 +752,7 @@ export default function FinancialReports() {
                         setExpandedExpenses(new Set([...allCOGSCodes, ...allOpExpCodes]))
                       }}
                     >
-                      Expand All
+                      {language === "ar" ? "توسيع الكل" : "Expand All"}
                     </Button>
                     <Button 
                       variant="outline" 
@@ -761,7 +762,7 @@ export default function FinancialReports() {
                         setExpandedExpenses(new Set())
                       }}
                     >
-                      Collapse All
+                      {language === "ar" ? "طي الكل" : "Collapse All"}
                     </Button>
                   </div>
 
@@ -770,7 +771,7 @@ export default function FinancialReports() {
                     <div className="border rounded-lg overflow-hidden">
                       <div className="bg-green-50 px-4 py-2 font-semibold text-green-700 flex items-center gap-2">
                         <FolderOpen className="h-5 w-5" />
-                        REVENUE
+                        {t("fr.revenue")}
                       </div>
                       <Table>
                         <TableBody>
@@ -785,12 +786,12 @@ export default function FinancialReports() {
                               )
                           ) : (
                             <TableRow>
-                              <TableCell className="pl-6 text-muted-foreground">No revenue activity</TableCell>
+                              <TableCell className="pl-6 text-muted-foreground">{language === "ar" ? "لا يوجد نشاط إيرادات" : "No revenue activity"}</TableCell>
                               <TableCell className="text-right">{formatCurrency(0)}</TableCell>
                             </TableRow>
                           )}
                           <TableRow className="font-semibold border-t-2 bg-green-50">
-                            <TableCell className="font-bold">Total Revenue</TableCell>
+                            <TableCell className="font-bold">{t("fr.totalRevenue")}</TableCell>
                             <TableCell className="text-right font-bold text-green-700">
                               {formatCurrency(incomeStatement.totalRevenue || 0)}
                             </TableCell>
@@ -804,7 +805,7 @@ export default function FinancialReports() {
                       <div className="border rounded-lg overflow-hidden">
                         <div className="bg-orange-50 px-4 py-2 font-semibold text-orange-700 flex items-center gap-2">
                           <FolderOpen className="h-5 w-5" />
-                          COST OF GOODS SOLD (COGS)
+                          {language === "ar" ? "تكلفة البضاعة المباعة (COGS)" : "COST OF GOODS SOLD (COGS)"}
                         </div>
                         <Table>
                           <TableBody>
@@ -817,7 +818,7 @@ export default function FinancialReports() {
                                 renderHierarchicalAccount(cogsItem, 0, expandedExpenses, 'expense')
                               )}
                             <TableRow className="font-semibold border-t-2 bg-orange-50">
-                              <TableCell className="font-bold">Total COGS</TableCell>
+                              <TableCell className="font-bold">{language === "ar" ? "إجمالي COGS" : "Total COGS"}</TableCell>
                               <TableCell className="text-right font-bold text-orange-700">
                                 {formatCurrency(incomeStatement.totalCOGS || 0)}
                               </TableCell>
@@ -832,7 +833,7 @@ export default function FinancialReports() {
                       <div className="border rounded-lg overflow-hidden">
                         <div className="bg-red-50 px-4 py-2 font-semibold text-red-700 flex items-center gap-2">
                           <FolderOpen className="h-5 w-5" />
-                          OPERATING EXPENSES
+                          {t("fr.expenses")}
                         </div>
                         <Table>
                           <TableBody>
@@ -845,7 +846,7 @@ export default function FinancialReports() {
                                 renderHierarchicalAccount(expenseItem, 0, expandedExpenses, 'expense')
                               )}
                             <TableRow className="font-semibold border-t-2 bg-red-50">
-                              <TableCell className="font-bold">Total Operating Expenses</TableCell>
+                              <TableCell className="font-bold">{language === "ar" ? "إجمالي المصروفات التشغيلية" : "Total Operating Expenses"}</TableCell>
                               <TableCell className="text-right font-bold text-red-700">
                                 {formatCurrency(incomeStatement.totalOperatingExpenses || 0)}
                               </TableCell>
@@ -858,7 +859,7 @@ export default function FinancialReports() {
                     {/* Interest Expenses */}
                     {(incomeStatement.interestExpenses || []).length > 0 && (
                       <div className="border rounded-lg overflow-hidden">
-                        <div className="bg-yellow-50 px-4 py-2 font-semibold text-yellow-700">INTEREST EXPENSES</div>
+                        <div className="bg-yellow-50 px-4 py-2 font-semibold text-yellow-700">{language === "ar" ? "مصروفات الفوائد" : "INTEREST EXPENSES"}</div>
                         <Table>
                           <TableBody>
                             {incomeStatement.interestExpenses.map((item: any, index: number) => (
@@ -868,7 +869,7 @@ export default function FinancialReports() {
                               </TableRow>
                             ))}
                             <TableRow className="font-semibold border-t-2 bg-yellow-50">
-                              <TableCell className="font-bold">Total Interest Expenses</TableCell>
+                              <TableCell className="font-bold">{language === "ar" ? "إجمالي مصروفات الفوائد" : "Total Interest Expenses"}</TableCell>
                               <TableCell className="text-right font-bold text-yellow-700">
                                 {formatCurrency(incomeStatement.totalInterestExpenses || 0)}
                               </TableCell>
@@ -881,7 +882,7 @@ export default function FinancialReports() {
                     {/* Taxes */}
                     {(incomeStatement.taxes || []).length > 0 && (
                       <div className="border rounded-lg overflow-hidden">
-                        <div className="bg-purple-50 px-4 py-2 font-semibold text-purple-700">TAXES</div>
+                        <div className="bg-purple-50 px-4 py-2 font-semibold text-purple-700">{language === "ar" ? "الضرائب" : "TAXES"}</div>
                         <Table>
                           <TableBody>
                             {incomeStatement.taxes.map((item: any, index: number) => (
@@ -891,7 +892,7 @@ export default function FinancialReports() {
                               </TableRow>
                             ))}
                             <TableRow className="font-semibold border-t-2 bg-purple-50">
-                              <TableCell className="font-bold">Total Taxes</TableCell>
+                              <TableCell className="font-bold">{language === "ar" ? "إجمالي الضرائب" : "Total Taxes"}</TableCell>
                               <TableCell className="text-right font-bold text-purple-700">
                                 {formatCurrency(incomeStatement.totalTaxes || 0)}
                               </TableCell>
@@ -904,26 +905,26 @@ export default function FinancialReports() {
                     {/* Net Profit */}
                     <div className={`border-2 rounded-lg p-4 ${(incomeStatement.netProfit || incomeStatement.netIncome || 0) >= 0 ? 'bg-green-50 border-green-300' : 'bg-red-50 border-red-300'}`}>
                       <div className="flex justify-between font-bold text-xl">
-                        <span>NET PROFIT</span>
+                        <span>{t("fr.netProfit")}</span>
                         <span className={(incomeStatement.netProfit || incomeStatement.netIncome || 0) >= 0 ? 'text-green-700' : 'text-red-700'}>
                           {formatCurrency(Math.abs(incomeStatement.netProfit || incomeStatement.netIncome || 0))}
                         </span>
                       </div>
                       <p className="text-xs text-muted-foreground mt-1">
-                        (Gross Profit - Operating Expenses - Interest - Taxes)
+                        {language === "ar" ? "(إجمالي الربح - المصروفات التشغيلية - الفوائد - الضرائب)" : "(Gross Profit - Operating Expenses - Interest - Taxes)"}
                       </p>
                     </div>
 
                     {/* Net Income - Final Bottom Line */}
                     <div className={`border-2 border-gray-400 rounded-lg p-4 ${(incomeStatement.netProfit || incomeStatement.netIncome || 0) >= 0 ? 'bg-emerald-50 border-emerald-400' : 'bg-rose-50 border-rose-400'}`}>
                       <div className="flex justify-between font-bold text-2xl">
-                        <span>NET INCOME</span>
+                        <span>{t("fr.netIncome")}</span>
                         <span className={(incomeStatement.netProfit || incomeStatement.netIncome || 0) >= 0 ? 'text-emerald-700' : 'text-rose-700'}>
                           {formatCurrency(Math.abs(incomeStatement.netProfit || incomeStatement.netIncome || 0))}
                         </span>
                       </div>
                       <p className="text-xs text-muted-foreground mt-1">
-                        Final bottom line after all expenses and deductions
+                        {language === "ar" ? "النتيجة النهائية بعد جميع المصروفات والخصومات" : "Final bottom line after all expenses and deductions"}
                       </p>
                     </div>
                   </div>
@@ -940,24 +941,24 @@ export default function FinancialReports() {
                 <div>
                   <CardTitle className="flex items-center gap-2">
                     <DollarSign className="h-5 w-5" />
-                    Cash Flow Statement
+                    {t("fr.cashFlow")}
                   </CardTitle>
                   <CardDescription>
-                    Track cash inflows and outflows from operating, investing, and financing activities
+                    {t("fr.cashFlowDescription")}
                   </CardDescription>
                 </div>
                 <div className="flex gap-2">
                   <Button onClick={loadCashFlowStatement} disabled={loading} variant="outline" size="sm">
                     <Download className="h-4 w-4 mr-2" />
-                    {loading ? "Loading..." : "Generate"}
+                    {loading ? t("common.loading") : t("fr.generate")}
                   </Button>
                   <Button onClick={exportCashFlowStatement} variant="outline" size="sm" disabled={!cashFlowStatement || loading}>
                     <Download className="h-4 w-4 mr-2" />
-                    Export CSV
+                    {t("fr.exportCSV")}
                   </Button>
                   <Button onClick={printCashFlowStatement} variant="outline" size="sm" disabled={!cashFlowStatement || loading}>
                     <Printer className="h-4 w-4 mr-2" />
-                    Print
+                    {t("fr.print")}
                   </Button>
                 </div>
               </div>
@@ -965,15 +966,15 @@ export default function FinancialReports() {
             <CardContent id="cash-flow-statement-content">
               <div className="flex items-end gap-4 mb-6 p-4 bg-gray-50 rounded-lg no-print">
                 <div className="space-y-2">
-                  <Label htmlFor="cash_start_date">Start Date</Label>
+                  <Label htmlFor="cash_start_date">{t("je.startDate")}</Label>
                   <Input id="cash_start_date" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="cash_end_date">End Date</Label>
+                  <Label htmlFor="cash_end_date">{t("je.endDate")}</Label>
                   <Input id="cash_end_date" type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
                 </div>
                 <Button onClick={loadCashFlowStatement} disabled={loading || !startDate || !endDate}>
-                  {loading ? "Loading..." : "Generate Cash Flow"}
+                  {loading ? t("common.loading") : (language === "ar" ? "إنشاء التدفق النقدي" : "Generate Cash Flow")}
                 </Button>
               </div>
 
@@ -981,7 +982,7 @@ export default function FinancialReports() {
                 <div className="space-y-6">
                   {/* Operating Activities */}
                   <div>
-                    <h3 className="text-lg font-semibold mb-4 text-green-700">OPERATING ACTIVITIES</h3>
+                    <h3 className="text-lg font-semibold mb-4 text-green-700">{t("fr.operatingActivities")}</h3>
                     <Table>
                       <TableBody>
                         {cashFlowStatement.operating_activities.map((item, index) => (
@@ -991,7 +992,7 @@ export default function FinancialReports() {
                           </TableRow>
                         ))}
                         <TableRow className="font-semibold border-t">
-                          <TableCell>Net Cash from Operating Activities</TableCell>
+                          <TableCell>{t("fr.netCashFromOperating")}</TableCell>
                           <TableCell className="text-right">{formatCurrency(cashFlowStatement.net_cash_flow.operating)}</TableCell>
                         </TableRow>
                       </TableBody>
@@ -1000,7 +1001,7 @@ export default function FinancialReports() {
 
                   {/* Investing Activities */}
                   <div>
-                    <h3 className="text-lg font-semibold mb-4 text-blue-700">INVESTING ACTIVITIES</h3>
+                    <h3 className="text-lg font-semibold mb-4 text-blue-700">{t("fr.investingActivities")}</h3>
                     <Table>
                       <TableBody>
                         {cashFlowStatement.investing_activities.map((item, index) => (
@@ -1010,7 +1011,7 @@ export default function FinancialReports() {
                           </TableRow>
                         ))}
                         <TableRow className="font-semibold border-t">
-                          <TableCell>Net Cash from Investing Activities</TableCell>
+                          <TableCell>{t("fr.netCashFromInvesting")}</TableCell>
                           <TableCell className="text-right">{formatCurrency(cashFlowStatement.net_cash_flow.investing)}</TableCell>
                         </TableRow>
                       </TableBody>
@@ -1019,7 +1020,7 @@ export default function FinancialReports() {
 
                   {/* Financing Activities */}
                   <div>
-                    <h3 className="text-lg font-semibold mb-4 text-purple-700">FINANCING ACTIVITIES</h3>
+                    <h3 className="text-lg font-semibold mb-4 text-purple-700">{t("fr.financingActivities")}</h3>
                     <Table>
                       <TableBody>
                         {cashFlowStatement.financing_activities.map((item, index) => (
@@ -1029,7 +1030,7 @@ export default function FinancialReports() {
                           </TableRow>
                         ))}
                         <TableRow className="font-semibold border-t">
-                          <TableCell>Net Cash from Financing Activities</TableCell>
+                          <TableCell>{t("fr.netCashFromFinancing")}</TableCell>
                           <TableCell className="text-right">{formatCurrency(cashFlowStatement.net_cash_flow.financing)}</TableCell>
                         </TableRow>
                       </TableBody>
@@ -1041,15 +1042,15 @@ export default function FinancialReports() {
                     <Table>
                       <TableBody>
                         <TableRow className="font-semibold">
-                          <TableCell>Net Increase (Decrease) in Cash</TableCell>
+                          <TableCell>{t("fr.netIncreaseDecrease")}</TableCell>
                           <TableCell className="text-right">{formatCurrency(cashFlowStatement.net_cash_flow.total)}</TableCell>
                         </TableRow>
                         <TableRow>
-                          <TableCell>Cash at Beginning of Period</TableCell>
+                          <TableCell>{t("fr.cashAtBeginning")}</TableCell>
                           <TableCell className="text-right">{formatCurrency(cashFlowStatement.cash_at_beginning)}</TableCell>
                         </TableRow>
                         <TableRow className="font-bold text-lg border-t-2 border-black">
-                          <TableCell>Cash at End of Period</TableCell>
+                          <TableCell>{t("fr.cashAtEnd")}</TableCell>
                           <TableCell className="text-right">{formatCurrency(cashFlowStatement.cash_at_end)}</TableCell>
                         </TableRow>
                       </TableBody>
@@ -1061,8 +1062,8 @@ export default function FinancialReports() {
               {!cashFlowStatement && !loading && (
                 <div className="text-center p-8 text-muted-foreground">
                   <DollarSign className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                  <p>Click "Generate Cash Flow" to view your cash flow statement.</p>
-                  <p className="text-sm mt-2">This will show operating, investing, and financing cash flows for the selected period.</p>
+                  <p>{language === "ar" ? "انقر فوق \"إنشاء التدفق النقدي\" لعرض قائمة التدفقات النقدية الخاصة بك." : "Click \"Generate Cash Flow\" to view your cash flow statement."}</p>
+                  <p className="text-sm mt-2">{language === "ar" ? "سيظهر هذا التدفقات النقدية التشغيلية والاستثمارية والتمويلية للفترة المحددة." : "This will show operating, investing, and financing cash flows for the selected period."}</p>
                 </div>
               )}
             </CardContent>
@@ -1074,46 +1075,46 @@ export default function FinancialReports() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <FileText className="h-5 w-5" />
-                Account Reports
+                {t("ar.title")}
               </CardTitle>
               <CardDescription>
-                Detailed reports for individual accounts and sub-accounts with transaction history
+                {language === "ar" ? "تقارير مفصلة للحسابات الفردية والحسابات الفرعية مع سجل المعاملات" : "Detailed reports for individual accounts and sub-accounts with transaction history"}
               </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="text-center p-8">
                 <FileText className="h-12 w-12 mx-auto mb-4 text-blue-600" />
-                <h3 className="text-lg font-semibold mb-2">Comprehensive Account Reports</h3>
+                <h3 className="text-lg font-semibold mb-2">{language === "ar" ? "تقارير الحسابات الشاملة" : "Comprehensive Account Reports"}</h3>
                 <p className="text-muted-foreground mb-6">
-                  Generate detailed reports for each account showing:
+                  {language === "ar" ? "إنشاء تقارير مفصلة لكل حساب تعرض:" : "Generate detailed reports for each account showing:"}
                 </p>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6 text-left max-w-2xl mx-auto">
                   <div className="flex items-start gap-2">
                     <div className="w-2 h-2 bg-blue-600 rounded-full mt-2 flex-shrink-0"></div>
-                    <span>Opening and current balances</span>
+                    <span>{language === "ar" ? "الأرصدة الافتتاحية والحالية" : "Opening and current balances"}</span>
                   </div>
                   <div className="flex items-start gap-2">
                     <div className="w-2 h-2 bg-blue-600 rounded-full mt-2 flex-shrink-0"></div>
-                    <span>Complete transaction history</span>
+                    <span>{language === "ar" ? "سجل المعاملات الكامل" : "Complete transaction history"}</span>
                   </div>
                   <div className="flex items-start gap-2">
                     <div className="w-2 h-2 bg-blue-600 rounded-full mt-2 flex-shrink-0"></div>
-                    <span>Debit and credit summaries</span>
+                    <span>{language === "ar" ? "ملخصات المدين والدائن" : "Debit and credit summaries"}</span>
                   </div>
                   <div className="flex items-start gap-2">
                     <div className="w-2 h-2 bg-blue-600 rounded-full mt-2 flex-shrink-0"></div>
-                    <span>Sub-account breakdowns</span>
+                    <span>{language === "ar" ? "تفصيلات الحسابات الفرعية" : "Sub-account breakdowns"}</span>
                   </div>
                 </div>
                 <div className="space-y-3">
                   <Button asChild className="w-full md:w-auto">
                     <a href="/account-reports">
                       <FileText className="h-4 w-4 mr-2" />
-                      View All Account Reports
+                      {language === "ar" ? "عرض جميع تقارير الحسابات" : "View All Account Reports"}
                     </a>
                   </Button>
                   <p className="text-sm text-muted-foreground">
-                    Or navigate to Chart of Accounts to view individual account reports
+                    {language === "ar" ? "أو انتقل إلى دليل الحسابات لعرض تقارير الحسابات الفردية" : "Or navigate to Chart of Accounts to view individual account reports"}
                   </p>
                 </div>
               </div>

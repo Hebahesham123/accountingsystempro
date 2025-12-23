@@ -9,9 +9,11 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { login } from "@/lib/auth-utils"
+import { useLanguage } from "@/lib/language-context"
 
 export default function LoginPage() {
   const router = useRouter()
+  const { language, t } = useLanguage()
   const [email, setEmail] = useState("")
   const [pin, setPin] = useState("")
   const [loading, setLoading] = useState(false)
@@ -24,7 +26,7 @@ export default function LoginPage() {
 
     try {
       if (!email.trim() || !pin.trim()) {
-        setError("Please enter both email and PIN")
+        setError(language === "ar" ? "يرجى إدخال البريد الإلكتروني والرمز السري" : "Please enter both email and PIN")
         setLoading(false)
         return
       }
@@ -36,10 +38,10 @@ export default function LoginPage() {
         router.push("/")
         router.refresh()
       } else {
-        setError("Invalid email or PIN. Please try again.")
+        setError(t("login.invalid"))
       }
     } catch (err) {
-      setError("An error occurred. Please try again.")
+      setError(t("login.error"))
       console.error("Login error:", err)
     } finally {
       setLoading(false)
@@ -55,9 +57,9 @@ export default function LoginPage() {
               <LogIn className="h-8 w-8 text-primary-foreground" />
             </div>
           </div>
-          <CardTitle className="text-2xl text-center">Accounting System</CardTitle>
+          <CardTitle className="text-2xl text-center">{language === "ar" ? "نظام المحاسبة" : "Accounting System"}</CardTitle>
           <CardDescription className="text-center">
-            Enter your email and PIN to access the system
+            {language === "ar" ? "أدخل بريدك الإلكتروني والرمز السري للوصول إلى النظام" : "Enter your email and PIN to access the system"}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -70,13 +72,13 @@ export default function LoginPage() {
             )}
 
             <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="email">{t("login.email")}</Label>
               <div className="relative">
                 <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                 <Input
                   id="email"
                   type="email"
-                  placeholder="admin@example.com"
+                  placeholder={t("login.enterEmail")}
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="pl-10"
@@ -88,13 +90,13 @@ export default function LoginPage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="pin">PIN</Label>
+              <Label htmlFor="pin">{t("login.pin")}</Label>
               <div className="relative">
                 <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                 <Input
                   id="pin"
                   type="password"
-                  placeholder="Enter your PIN"
+                  placeholder={t("login.enterPin")}
                   value={pin}
                   onChange={(e) => setPin(e.target.value)}
                   className="pl-10"
@@ -109,12 +111,12 @@ export default function LoginPage() {
               {loading ? (
                 <>
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                  Logging in...
+                  {language === "ar" ? "جاري تسجيل الدخول..." : "Logging in..."}
                 </>
               ) : (
                 <>
                   <LogIn className="h-4 w-4 mr-2" />
-                  Login
+                  {t("login.submit")}
                 </>
               )}
             </Button>
@@ -122,12 +124,12 @@ export default function LoginPage() {
 
           <div className="mt-6 pt-6 border-t">
             <p className="text-xs text-center text-muted-foreground">
-              System Credentials:
+              {language === "ar" ? "بيانات النظام:" : "System Credentials:"}
             </p>
             <div className="mt-2 space-y-1 text-xs text-center text-muted-foreground">
-              <p>Admin: admin@gmail.com / 1234</p>
-              <p>Accountant: accountant@gmail.com / 5678</p>
-              <p>User: user@gmail.com / 9012</p>
+              <p>{language === "ar" ? "مدير: admin@gmail.com / 1234" : "Admin: admin@gmail.com / 1234"}</p>
+              <p>{language === "ar" ? "محاسب: accountant@gmail.com / 5678" : "Accountant: accountant@gmail.com / 5678"}</p>
+              <p>{language === "ar" ? "مستخدم: user@gmail.com / 9012" : "User: user@gmail.com / 9012"}</p>
             </div>
           </div>
         </CardContent>

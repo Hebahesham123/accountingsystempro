@@ -15,8 +15,10 @@ import JournalEntryReview from "@/components/journal-entry-review"
 import { supabase } from "@/lib/supabase"
 import Link from "next/link"
 import { getCurrentUser, canEditAccountingData } from "@/lib/auth-utils"
+import { useLanguage } from "@/lib/language-context"
 
 export default function JournalEntriesList() {
+  const { language, t } = useLanguage()
   const [entries, setEntries] = useState<JournalEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedEntry, setSelectedEntry] = useState<JournalEntry | null>(null)
@@ -198,7 +200,7 @@ export default function JournalEntriesList() {
       return (
         <Badge variant="destructive" className="bg-orange-100 text-orange-800 border-orange-200">
           <AlertCircle className="w-3 h-3 mr-1" />
-          Missing Lines
+          {t("je.missingLinesStatus")}
         </Badge>
       )
     }
@@ -207,7 +209,7 @@ export default function JournalEntriesList() {
       return (
         <Badge className="bg-green-100 text-green-800 border-green-200">
           <CheckCircle className="w-3 h-3 mr-1" />
-          Balanced
+          {t("je.balanced")}
         </Badge>
       )
     }
@@ -215,7 +217,7 @@ export default function JournalEntriesList() {
     return (
       <Badge variant="destructive" className="bg-red-100 text-red-800 border-red-200">
         <AlertCircle className="w-3 h-3 mr-1" />
-        Unbalanced
+        {t("je.unbalanced")}
       </Badge>
     )
   }
@@ -357,20 +359,20 @@ export default function JournalEntriesList() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Entries</CardTitle>
+            <CardTitle className="text-sm font-medium">{language === "ar" ? "إجمالي القيود" : "Total Entries"}</CardTitle>
             <FileText className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{stats.totalEntries}</div>
             <p className="text-xs text-muted-foreground">
-              {stats.balancedEntries} balanced
+              {stats.balancedEntries} {language === "ar" ? "متوازن" : "balanced"}
             </p>
           </CardContent>
         </Card>
         
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Debits</CardTitle>
+            <CardTitle className="text-sm font-medium">{t("je.totalDebit")}</CardTitle>
             <DollarSign className="h-4 w-4 text-green-600" />
           </CardHeader>
           <CardContent>
@@ -383,7 +385,7 @@ export default function JournalEntriesList() {
         
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Credits</CardTitle>
+            <CardTitle className="text-sm font-medium">{t("je.totalCredit")}</CardTitle>
             <DollarSign className="h-4 w-4 text-blue-600" />
           </CardHeader>
           <CardContent>
@@ -396,13 +398,13 @@ export default function JournalEntriesList() {
         
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Data Integrity</CardTitle>
+            <CardTitle className="text-sm font-medium">{language === "ar" ? "سلامة البيانات" : "Data Integrity"}</CardTitle>
             <AlertCircle className="h-4 w-4 text-orange-600" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-orange-600">{stats.entriesWithoutLines}</div>
             <p className="text-xs text-muted-foreground">
-              Missing lines
+              {language === "ar" ? "بنود مفقودة" : "Missing lines"}
             </p>
           </CardContent>
         </Card>
@@ -413,13 +415,13 @@ export default function JournalEntriesList() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Filter className="h-5 w-5" />
-            Filters
+            {t("general.filter")}
           </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="startDate">Start Date</Label>
+              <Label htmlFor="startDate">{language === "ar" ? "تاريخ البداية" : "Start Date"}</Label>
               <Input
                 id="startDate"
                 type="date"
@@ -428,7 +430,7 @@ export default function JournalEntriesList() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="endDate">End Date</Label>
+              <Label htmlFor="endDate">{language === "ar" ? "تاريخ النهاية" : "End Date"}</Label>
               <Input
                 id="endDate"
                 type="date"
@@ -437,7 +439,7 @@ export default function JournalEntriesList() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="accountType">Account Type</Label>
+              <Label htmlFor="accountType">{t("coa.accountType")}</Label>
               <Select value={filters.accountType} onValueChange={(value) => handleFilterChange("accountType", value)}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select type" />
@@ -453,26 +455,26 @@ export default function JournalEntriesList() {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="status">Status</Label>
+              <Label htmlFor="status">{t("common.status")}</Label>
               <Select value={filters.status} onValueChange={(value) => handleFilterChange("status", value)}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select status" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="All Statuses">All Statuses</SelectItem>
-                  <SelectItem value="Balanced">Balanced</SelectItem>
-                  <SelectItem value="Unbalanced">Unbalanced</SelectItem>
-                  <SelectItem value="Missing Lines">Missing Lines</SelectItem>
+                  <SelectItem value="Balanced">{t("je.balanced")}</SelectItem>
+                  <SelectItem value="Unbalanced">{t("je.unbalanced")}</SelectItem>
+                  <SelectItem value="Missing Lines">{t("je.missingLinesStatus")}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="search">Search</Label>
+              <Label htmlFor="search">{t("common.search")}</Label>
               <div className="relative">
                 <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                 <Input
                   id="search"
-                  placeholder="Search entries..."
+                  placeholder={language === "ar" ? "بحث في القيود..." : "Search entries..."}
                   value={filters.searchTerm}
                   onChange={(e) => handleFilterChange("searchTerm", e.target.value)}
                   className="pl-10"
@@ -483,7 +485,7 @@ export default function JournalEntriesList() {
           <div className="flex gap-2 mt-4">
             <Button onClick={applyFilters} disabled={loading} className="flex-1">
               <Filter className="h-4 w-4 mr-2" />
-              {loading ? "Loading..." : "Apply Filters"}
+              {loading ? t("common.loading") : (language === "ar" ? "تطبيق المرشحات" : "Apply Filters")}
             </Button>
             <Button 
               onClick={async () => {
@@ -534,7 +536,7 @@ export default function JournalEntriesList() {
               variant="outline"
               disabled={loading}
             >
-              Show All
+              {t("je.showAll")}
             </Button>
           </div>
         </CardContent>
@@ -545,10 +547,10 @@ export default function JournalEntriesList() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <FileText className="h-5 w-5" />
-            Journal Entries ({entries.length})
+            {t("je.title")} ({entries.length})
           </CardTitle>
           <CardDescription>
-            Complete details of all journal entries with enhanced functionality
+            {language === "ar" ? "تفاصيل كاملة لجميع قيود اليومية مع وظائف محسنة" : "Complete details of all journal entries with enhanced functionality"}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -556,16 +558,16 @@ export default function JournalEntriesList() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Entry #</TableHead>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Description</TableHead>
-                  <TableHead>Account Name</TableHead>
-                  <TableHead>Project</TableHead>
-                  <TableHead>Created By</TableHead>
-                  <TableHead className="text-right">Amount</TableHead>
-                  <TableHead>Lines</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Actions</TableHead>
+                  <TableHead>{t("je.entryNumber")}</TableHead>
+                  <TableHead>{t("common.date")}</TableHead>
+                  <TableHead>{t("common.description")}</TableHead>
+                  <TableHead>{t("je.accountName")}</TableHead>
+                  <TableHead>{t("je.project")}</TableHead>
+                  <TableHead>{t("common.createdBy")}</TableHead>
+                  <TableHead className="text-right">{t("common.amount")}</TableHead>
+                  <TableHead>{t("je.lines")}</TableHead>
+                  <TableHead>{t("common.status")}</TableHead>
+                  <TableHead>{t("common.actions")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -574,14 +576,14 @@ export default function JournalEntriesList() {
                     <TableCell colSpan={10} className="text-center py-8">
                       <div className="flex items-center justify-center">
                         <Clock className="h-4 w-4 mr-2 animate-spin" />
-                        Loading entries...
+                        {t("je.loading")}
                       </div>
                     </TableCell>
                   </TableRow>
                 ) : entries.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={10} className="text-center py-8 text-gray-500">
-                      No journal entries found matching your criteria.
+                      {t("je.noEntries")}
                     </TableCell>
                   </TableRow>
                 ) : (
@@ -592,7 +594,7 @@ export default function JournalEntriesList() {
                       </TableCell>
                       <TableCell>{formatDate(entry.entry_date)}</TableCell>
                       <TableCell className="max-w-[200px] truncate">
-                        {entry.description || "No description"}
+                        {entry.description || t("general.noDescription")}
                       </TableCell>
                       <TableCell className="max-w-[200px]">
                         {entry.journal_entry_lines && entry.journal_entry_lines.length > 0 ? (
@@ -614,7 +616,7 @@ export default function JournalEntriesList() {
                             )}
                           </div>
                         ) : (
-                          <span className="text-sm text-muted-foreground">No accounts</span>
+                          <span className="text-sm text-muted-foreground">{t("je.noAccounts")}</span>
                         )}
                       </TableCell>
                       <TableCell className="max-w-[150px]">
@@ -651,7 +653,7 @@ export default function JournalEntriesList() {
                             <span className="text-sm">{entry.users.name}</span>
                           </div>
                         ) : (
-                          <span className="text-sm text-muted-foreground">Unknown</span>
+                          <span className="text-sm text-muted-foreground">{language === "ar" ? "غير معروف" : "Unknown"}</span>
                         )}
                       </TableCell>
                       <TableCell className="text-right">
@@ -671,7 +673,7 @@ export default function JournalEntriesList() {
                           </span>
                           {entry.journal_entry_lines && entry.journal_entry_lines.length > 0 && (
                             <Badge variant="outline" className="text-xs">
-                              Complete
+                              {language === "ar" ? "مكتمل" : "Complete"}
                             </Badge>
                           )}
                         </div>

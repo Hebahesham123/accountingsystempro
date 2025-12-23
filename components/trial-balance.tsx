@@ -11,8 +11,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge"
 import { type TrialBalanceItem, AccountingService } from "@/lib/accounting-utils"
 import { useToast } from "@/hooks/use-toast"
+import { useLanguage } from "@/lib/language-context"
 
 export default function TrialBalance() {
+  const { language, t } = useLanguage()
   const [trialBalance, setTrialBalance] = useState<TrialBalanceItem[]>([])
   const [filteredBalance, setFilteredBalance] = useState<TrialBalanceItem[]>([])
   const [loading, setLoading] = useState(false)
@@ -201,12 +203,12 @@ export default function TrialBalance() {
       <CardHeader>
         <div className="flex items-center justify-between">
           <div>
-            <CardTitle>Trial Balance</CardTitle>
-            <CardDescription>Summary of all account balances to verify double-entry bookkeeping</CardDescription>
+            <CardTitle>{t("tb.title")}</CardTitle>
+            <CardDescription>{t("tb.summary")}</CardDescription>
           </div>
           <Button onClick={exportToCSV} variant="outline" disabled={filteredBalance.length === 0}>
             <Download className="h-4 w-4 mr-2" />
-            Export CSV
+            {t("tb.exportCSV")}
           </Button>
         </div>
       </CardHeader>
@@ -216,28 +218,28 @@ export default function TrialBalance() {
           {/* Date Filter */}
           <div className="flex items-end gap-4 p-4 bg-gray-50 rounded-lg">
             <div className="space-y-2">
-              <Label htmlFor="start_date">Start Date</Label>
+              <Label htmlFor="start_date">{t("je.startDate")}</Label>
               <Input id="start_date" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="end_date">End Date</Label>
+              <Label htmlFor="end_date">{t("je.endDate")}</Label>
               <Input id="end_date" type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
             </div>
             <Button onClick={handleDateFilter} disabled={loading}>
               <Filter className="h-4 w-4 mr-2" />
-              {loading ? "Loading..." : "Apply Date Filter"}
+              {loading ? t("common.loading") : t("tb.applyDateFilter")}
             </Button>
           </div>
 
           {/* Search and Type Filters */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="search">Search by Account Name or Code</Label>
+              <Label htmlFor="search">{t("tb.searchByNameOrCode")}</Label>
               <div className="relative">
                 <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                 <Input
                   id="search"
-                  placeholder="Search accounts..."
+                  placeholder={t("tb.searchAccounts")}
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="pl-10"
@@ -245,13 +247,13 @@ export default function TrialBalance() {
               </div>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="account_type">Filter by Account Type</Label>
+              <Label htmlFor="account_type">{t("tb.filterByType")}</Label>
               <Select value={accountTypeFilter} onValueChange={setAccountTypeFilter}>
                 <SelectTrigger>
-                  <SelectValue placeholder="All account types" />
+                  <SelectValue placeholder={t("tb.allAccountTypes")} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="All Types">All Types</SelectItem>
+                  <SelectItem value="All Types">{t("tb.allTypes")}</SelectItem>
                   <SelectItem value="Asset">Asset</SelectItem>
                   <SelectItem value="Liability">Liability</SelectItem>
                   <SelectItem value="Equity">Equity</SelectItem>
@@ -265,7 +267,7 @@ export default function TrialBalance() {
           {/* Filter Summary */}
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <span>
-              Showing {filteredBalance.length} of {trialBalance.length} accounts
+              {language === "ar" ? `عرض ${filteredBalance.length} من ${trialBalance.length} حسابات` : `Showing ${filteredBalance.length} of ${trialBalance.length} accounts`}
             </span>
             {accountTypeFilter !== "All Types" && <Badge variant="outline">Type: {accountTypeFilter}</Badge>}
             {searchTerm && <Badge variant="outline">Search: "{searchTerm}"</Badge>}
@@ -275,24 +277,24 @@ export default function TrialBalance() {
         {/* View Controls */}
         <div className="flex items-center gap-4 mb-4">
           <div className="flex items-center gap-2">
-            <Label>View:</Label>
+            <Label>{language === "ar" ? "العرض:" : "View:"}</Label>
             <Select value={viewMode} onValueChange={(v: "flat" | "hierarchical") => setViewMode(v)}>
               <SelectTrigger className="w-[150px]">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="hierarchical">Hierarchical</SelectItem>
-                <SelectItem value="flat">Flat List</SelectItem>
+                <SelectItem value="hierarchical">{t("tb.hierarchicalView")}</SelectItem>
+                <SelectItem value="flat">{t("tb.flatList")}</SelectItem>
               </SelectContent>
             </Select>
           </div>
           {viewMode === "hierarchical" && (
             <div className="flex gap-2">
               <Button variant="outline" size="sm" onClick={expandAll}>
-                Expand All
+                {t("tb.expandAll")}
               </Button>
               <Button variant="outline" size="sm" onClick={collapseAll}>
-                Collapse All
+                {t("tb.collapseAll")}
               </Button>
             </div>
           )}
@@ -371,7 +373,7 @@ export default function TrialBalance() {
               {filteredBalance.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
-                    {loading ? "Loading trial balance..." : "No accounts match your filters"}
+                    {loading ? t("tb.loading") : (language === "ar" ? "لا توجد حسابات تطابق المرشحات" : "No accounts match your filters")}
                   </TableCell>
                 </TableRow>
               )}
@@ -380,7 +382,7 @@ export default function TrialBalance() {
               {filteredBalance.length > 0 && (
                 <TableRow className="bg-blue-50 font-semibold border-t-2">
                   <TableCell colSpan={2} className="text-right">
-                    <strong>GRAND TOTALS:</strong>
+                    <strong>{language === "ar" ? "الإجماليات الكبرى:" : "GRAND TOTALS:"}</strong>
                   </TableCell>
                   <TableCell className="text-right">
                     <strong>{formatCurrency(getTotalDebits())}</strong>
@@ -390,7 +392,7 @@ export default function TrialBalance() {
                   </TableCell>
                   <TableCell className="text-right">
                     <Badge variant={Math.abs(getTotalDebits() - getTotalCredits()) < 0.01 ? "default" : "destructive"}>
-                      {Math.abs(getTotalDebits() - getTotalCredits()) < 0.01 ? "Balanced ✓" : "Not Balanced ✗"}
+                      {Math.abs(getTotalDebits() - getTotalCredits()) < 0.01 ? (language === "ar" ? "متوازن ✓" : "Balanced ✓") : (language === "ar" ? "غير متوازن ✗" : "Not Balanced ✗")}
                     </Badge>
                   </TableCell>
                   <TableCell></TableCell>
@@ -404,12 +406,12 @@ export default function TrialBalance() {
         {filteredBalance.length > 0 && (
           <div className="mt-4 p-4 bg-blue-50 rounded-lg">
             <div className="flex items-center justify-between">
-              <span className="font-medium">Balance Verification:</span>
+              <span className="font-medium">{language === "ar" ? "التحقق من التوازن:" : "Balance Verification:"}</span>
               <div className="flex gap-4">
-                <span>Total Debits: ${getTotalDebits().toFixed(2)}</span>
-                <span>Total Credits: ${getTotalCredits().toFixed(2)}</span>
+                <span>{t("tb.totalDebits")}: ${getTotalDebits().toFixed(2)}</span>
+                <span>{t("tb.totalCredits")}: ${getTotalCredits().toFixed(2)}</span>
                 <Badge variant={Math.abs(getTotalDebits() - getTotalCredits()) < 0.01 ? "default" : "destructive"}>
-                  Difference: ${Math.abs(getTotalDebits() - getTotalCredits()).toFixed(2)}
+                  {t("tb.difference")}: ${Math.abs(getTotalDebits() - getTotalCredits()).toFixed(2)}
                 </Badge>
               </div>
             </div>

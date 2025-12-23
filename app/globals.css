@@ -156,3 +156,146 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* RTL Support for Arabic */
+[dir="rtl"] {
+  direction: rtl;
+}
+
+[dir="rtl"] * {
+  text-align: inherit;
+}
+
+/* Don't reverse flex by default - only when needed */
+[dir="rtl"] nav .flex.items-center:not(.flex-col) {
+  flex-direction: row-reverse;
+}
+
+/* Fix margins - swap left/right */
+[dir="rtl"] .mr-2 {
+  margin-right: 0 !important;
+  margin-left: 0.5rem !important;
+}
+
+[dir="rtl"] .ml-2 {
+  margin-left: 0 !important;
+  margin-right: 0.5rem !important;
+}
+
+[dir="rtl"] .mr-4 {
+  margin-right: 0 !important;
+  margin-left: 1rem !important;
+}
+
+[dir="rtl"] .ml-4 {
+  margin-left: 0 !important;
+  margin-right: 1rem !important;
+}
+
+/* Fix padding */
+[dir="rtl"] .pr-2 {
+  padding-right: 0 !important;
+  padding-left: 0.5rem !important;
+}
+
+[dir="rtl"] .pl-2 {
+  padding-left: 0 !important;
+  padding-right: 0.5rem !important;
+}
+
+[dir="rtl"] .pr-4 {
+  padding-right: 0 !important;
+  padding-left: 1rem !important;
+}
+
+[dir="rtl"] .pl-4 {
+  padding-left: 0 !important;
+  padding-right: 1rem !important;
+}
+
+[dir="rtl"] .pl-10 {
+  padding-left: 0 !important;
+  padding-right: 2.5rem !important;
+}
+
+/* Text alignment */
+[dir="rtl"] .text-right {
+  text-align: left;
+}
+
+[dir="rtl"] .text-left {
+  text-align: right;
+}
+
+[dir="rtl"] .text-center {
+  text-align: center;
+}
+
+/* Justify content */
+[dir="rtl"] .justify-start {
+  justify-content: flex-end;
+}
+
+[dir="rtl"] .justify-end {
+  justify-content: flex-start;
+}
+
+/* Form inputs */
+[dir="rtl"] input,
+[dir="rtl"] textarea,
+[dir="rtl"] select {
+  text-align: right;
+  direction: rtl;
+}
+
+/* Buttons with icons */
+[dir="rtl"] button svg.mr-2,
+[dir="rtl"] button .mr-2 {
+  margin-right: 0 !important;
+  margin-left: 0.5rem !important;
+}
+
+[dir="rtl"] button svg.ml-2,
+[dir="rtl"] button .ml-2 {
+  margin-left: 0 !important;
+  margin-right: 0.5rem !important;
+}
+
+/* Navigation items */
+[dir="rtl"] nav .flex.items-center.gap-1 {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] nav .flex.items-center.gap-4 {
+  flex-direction: row-reverse;
+}
+
+/* Cards and containers */
+[dir="rtl"] .container {
+  direction: rtl;
+}
+
+/* Grid layouts - keep as is, just adjust text */
+[dir="rtl"] .grid {
+  direction: rtl;
+}
+
+/* Popover and dropdown */
+[dir="rtl"] [role="combobox"],
+[dir="rtl"] [role="listbox"],
+[dir="rtl"] [data-radix-popper-content-wrapper] {
+  direction: rtl;
+  text-align: right;
+}
+
+/* Command palette */
+[dir="rtl"] [cmdk-input] {
+  direction: rtl;
+  text-align: right;
+}
+
+/* Badge and labels */
+[dir="rtl"] .badge,
+[dir="rtl"] label {
+  direction: rtl;
+}

@@ -8,6 +8,8 @@ import { Button } from "@/components/ui/button"
 import { Calculator, FileText, TrendingUp, Users, PieChart, BookOpen, DollarSign, BarChart3, ChevronRight, FolderOpen, ArrowUpRight, ArrowDownRight } from "lucide-react"
 import { AccountingService, type DashboardStats, type Account } from "@/lib/accounting-utils"
 import { getCurrentUser, isRegularUser } from "@/lib/auth-utils"
+import { useLanguage } from "@/lib/language-context"
+import { formatCurrency } from "@/lib/export-utils"
 
 type AccountSummary = {
   type: string
@@ -19,6 +21,7 @@ type AccountSummary = {
 export default function HomePage() {
   const router = useRouter()
   const currentUser = getCurrentUser()
+  const { language, t } = useLanguage()
   
   // Redirect regular users to purchase orders
   useEffect(() => {
@@ -109,45 +112,47 @@ export default function HomePage() {
       currency: "USD",
     }).format(amount)
   }
+
+  // Define features inside component to access t() and language
   const features = [
     {
-      title: "Chart of Accounts",
-      description: "Manage your hierarchical chart of accounts structure",
+      title: t("nav.chartOfAccounts"),
+      description: language === "ar" ? "إدارة هيكل دليل الحسابات الهرمي" : "Manage your hierarchical chart of accounts structure",
       icon: BookOpen,
       href: "/chart-of-accounts",
       color: "text-green-600",
     },
     {
-      title: "Journal Entries",
-      description: "Create and manage double-entry journal entries",
+      title: t("nav.journalEntries"),
+      description: language === "ar" ? "إنشاء وإدارة قيود اليومية مزدوجة القيد" : "Create and manage double-entry journal entries",
       icon: FileText,
       href: "/journal-entries",
       color: "text-blue-600",
     },
     {
-      title: "General Ledger",
-      description: "View detailed transaction history by account",
+      title: t("nav.generalLedger"),
+      description: language === "ar" ? "عرض سجل المعاملات التفصيلي حسب الحساب" : "View detailed transaction history by account",
       icon: BarChart3,
       href: "/general-ledger",
       color: "text-indigo-600",
     },
     {
-      title: "Trial Balance",
-      description: "View trial balance and verify account balances",
+      title: t("nav.trialBalance"),
+      description: language === "ar" ? "عرض ميزان المراجعة والتحقق من أرصدة الحسابات" : "View trial balance and verify account balances",
       icon: Calculator,
       href: "/trial-balance",
       color: "text-purple-600",
     },
     {
-      title: "Financial Reports",
-      description: "Generate balance sheet, income statement, and cash flow",
+      title: t("nav.financialReports"),
+      description: language === "ar" ? "إنشاء الميزانية العمومية وقائمة الدخل والتدفقات النقدية" : "Generate balance sheet, income statement, and cash flow",
       icon: TrendingUp,
       href: "/financial-reports",
       color: "text-orange-600",
     },
     {
-      title: "User Management",
-      description: "Manage users, roles, and permissions",
+      title: t("nav.users"),
+      description: language === "ar" ? "إدارة المستخدمين والأدوار والصلاحيات" : "Manage users, roles, and permissions",
       icon: Users,
       href: "/user-management",
       color: "text-red-600",
@@ -159,10 +164,11 @@ export default function HomePage() {
       <div className="container mx-auto px-4 py-8">
         {/* Header */}
         <div className="text-center mb-12">
-          <h1 className="text-4xl font-bold text-gray-900 mb-4">Comprehensive Accounting System</h1>
+          <h1 className="text-4xl font-bold text-gray-900 mb-4">{language === "ar" ? "نظام محاسبة شامل" : "Comprehensive Accounting System"}</h1>
           <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-            Complete double-entry bookkeeping system with chart of accounts, journal entries, financial reporting, and
-            audit trails. Built for accuracy and compliance.
+            {language === "ar" 
+              ? "نظام محاسبة مزدوج القيد كامل مع دليل الحسابات، قيود اليومية، التقارير المالية، وسجلات التدقيق. مبني للدقة والامتثال."
+              : "Complete double-entry bookkeeping system with chart of accounts, journal entries, financial reporting, and audit trails. Built for accuracy and compliance."}
           </p>
         </div>
 
@@ -173,7 +179,7 @@ export default function HomePage() {
               <div className="flex items-center">
                 <DollarSign className="h-8 w-8 text-green-600" />
                 <div className="ml-4">
-                  <p className="text-sm font-medium text-gray-600">Total Assets</p>
+                  <p className="text-sm font-medium text-gray-600">{t("dashboard.totalAssets")}</p>
                   <p className="text-2xl font-bold text-gray-900">
                     {loading ? "..." : formatCurrency(stats.totalAssets)}
                   </p>
@@ -187,7 +193,7 @@ export default function HomePage() {
               <div className="flex items-center">
                 <PieChart className="h-8 w-8 text-blue-600" />
                 <div className="ml-4">
-                  <p className="text-sm font-medium text-gray-600">Net Income</p>
+                  <p className="text-sm font-medium text-gray-600">{t("dashboard.netIncome")}</p>
                   <p className="text-2xl font-bold text-gray-900">
                     {loading ? "..." : formatCurrency(stats.netIncome)}
                   </p>
@@ -201,7 +207,7 @@ export default function HomePage() {
               <div className="flex items-center">
                 <FileText className="h-8 w-8 text-purple-600" />
                 <div className="ml-4">
-                  <p className="text-sm font-medium text-gray-600">Journal Entries</p>
+                  <p className="text-sm font-medium text-gray-600">{t("nav.journalEntries")}</p>
                   <p className="text-2xl font-bold text-gray-900">
                     {loading ? "..." : stats.journalEntriesCount.toLocaleString()}
                   </p>
@@ -215,7 +221,7 @@ export default function HomePage() {
               <div className="flex items-center">
                 <BookOpen className="h-8 w-8 text-orange-600" />
                 <div className="ml-4">
-                  <p className="text-sm font-medium text-gray-600">Active Accounts</p>
+                  <p className="text-sm font-medium text-gray-600">{language === "ar" ? "الحسابات النشطة" : "Active Accounts"}</p>
                   <p className="text-2xl font-bold text-gray-900">
                     {loading ? "..." : stats.activeAccountsCount.toLocaleString()}
                   </p>
@@ -240,7 +246,7 @@ export default function HomePage() {
                 </CardHeader>
                 <CardContent>
                   <Link href={feature.href}>
-                    <Button className="w-full">Access {feature.title}</Button>
+                    <Button className="w-full">{language === "ar" ? "الوصول إلى" : "Access"} {feature.title}</Button>
                   </Link>
                 </CardContent>
               </Card>
@@ -253,7 +259,7 @@ export default function HomePage() {
           <div className="mt-8">
             <h2 className="text-2xl font-bold mb-6 flex items-center gap-2">
               <FolderOpen className="h-6 w-6" />
-              Account Balances Overview
+              {t("dashboard.accountBreakdown")}
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
               {accountSummaries.map((summary) => {
@@ -271,7 +277,7 @@ export default function HomePage() {
                     <CardHeader className={`${colors.bg} pb-2`}>
                       <CardTitle className={`text-lg ${colors.text} flex items-center justify-between`}>
                         <span>{summary.type}</span>
-                        <span className="text-xs font-normal">{summary.count} accounts</span>
+                        <span className="text-xs font-normal">{summary.count} {language === "ar" ? "حساب" : "accounts"}</span>
                       </CardTitle>
                       <div className={`text-2xl font-bold ${colors.text}`}>
                         {formatCurrency(summary.total)}
@@ -297,13 +303,13 @@ export default function HomePage() {
                         ))}
                         {summary.accounts.length > 5 && (
                           <div className="text-xs text-muted-foreground text-center pt-1">
-                            +{summary.accounts.length - 5} more accounts
+                            +{summary.accounts.length - 5} {language === "ar" ? "حسابات أخرى" : "more accounts"}
                           </div>
                         )}
                       </div>
                       <Link href="/chart-of-accounts">
                         <Button variant="ghost" size="sm" className="w-full mt-2 text-xs">
-                          View All <ArrowUpRight className="h-3 w-3 ml-1" />
+                          {language === "ar" ? "عرض الكل" : "View All"} <ArrowUpRight className="h-3 w-3 ml-1" />
                         </Button>
                       </Link>
                     </CardContent>

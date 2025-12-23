@@ -14,6 +14,7 @@ import { useToast } from "@/hooks/use-toast"
 import { AccountingService } from "@/lib/accounting-utils"
 import { getCurrentUser, canEditAccountingData, isAdmin, canApprovePurchaseOrders, canCreatePurchaseOrders } from "@/lib/auth-utils"
 import { formatCurrency } from "@/lib/export-utils"
+import { useLanguage } from "@/lib/language-context"
 
 interface PurchaseOrder {
   id: string
@@ -39,6 +40,7 @@ interface PurchaseOrder {
 
 export default function PurchaseOrderManagement() {
   const currentUser = getCurrentUser()
+  const { language, t } = useLanguage()
   const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrder[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -107,8 +109,8 @@ export default function PurchaseOrderManagement() {
     e.preventDefault()
     if (!formData.amount || parseFloat(formData.amount) <= 0) {
       toast({
-        title: "Missing Information",
-        description: "Amount is required and must be greater than 0",
+        title: language === "ar" ? "معلومات مفقودة" : "Missing Information",
+        description: language === "ar" ? "المبلغ مطلوب ويجب أن يكون أكبر من 0" : "Amount is required and must be greater than 0",
         variant: "destructive",
       })
       return
@@ -123,8 +125,8 @@ export default function PurchaseOrderManagement() {
           image_data: formData.image_data || undefined,
         })
         toast({
-          title: "Success",
-          description: "Purchase order updated successfully",
+          title: t("general.success"),
+          description: language === "ar" ? "تم تحديث أمر الشراء بنجاح" : "Purchase order updated successfully",
         })
       } else {
         await AccountingService.createPurchaseOrder({
@@ -133,8 +135,8 @@ export default function PurchaseOrderManagement() {
           image_data: formData.image_data || undefined,
         })
         toast({
-          title: "Success",
-          description: "Purchase order created successfully",
+          title: t("general.success"),
+          description: language === "ar" ? "تم إنشاء أمر الشراء بنجاح" : "Purchase order created successfully",
         })
       }
       setIsDialogOpen(false)
@@ -239,21 +241,24 @@ export default function PurchaseOrderManagement() {
   }
 
   const handleDelete = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this purchase order?")) {
+    const confirmMessage = language === "ar" 
+      ? "هل أنت متأكد أنك تريد حذف أمر الشراء هذا؟"
+      : "Are you sure you want to delete this purchase order?"
+    if (!confirm(confirmMessage)) {
       return
     }
     try {
       await AccountingService.deletePurchaseOrder(id)
       toast({
-        title: "Success",
-        description: "Purchase order deleted successfully",
+        title: t("general.success"),
+        description: language === "ar" ? "تم حذف أمر الشراء بنجاح" : "Purchase order deleted successfully",
       })
       loadPurchaseOrders()
     } catch (error) {
       console.error("Error deleting purchase order:", error)
       toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to delete purchase order",
+        title: t("general.error"),
+        description: error instanceof Error ? error.message : (language === "ar" ? "فشل في حذف أمر الشراء" : "Failed to delete purchase order"),
         variant: "destructive",
       })
     }
@@ -277,11 +282,11 @@ export default function PurchaseOrderManagement() {
   const isUserAccountant = currentUser?.role === 'accountant'
 
   return (
-    <div className="w-full space-y-6">
+      <div className="w-full space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Purchase Orders</h1>
-          <p className="text-gray-600 mt-1">Manage purchase orders and approvals</p>
+          <h1 className="text-3xl font-bold text-gray-900">{t("po.title")}</h1>
+          <p className="text-gray-600 mt-1">{t("po.manage")}</p>
         </div>
         {canCreatePO && (
           <Dialog open={isDialogOpen} onOpenChange={(open) => {
@@ -327,7 +332,7 @@ export default function PurchaseOrderManagement() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="description">Description</Label>
+                <Label htmlFor="description">{t("common.description")}</Label>
                 <Textarea
                   id="description"
                   value={formData.description}
@@ -337,7 +342,7 @@ export default function PurchaseOrderManagement() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="image">Upload Image</Label>
+                <Label htmlFor="image">{t("po.uploadImage")}</Label>
                 <div className="flex items-center gap-2">
                   <Input
                     id="image"
@@ -391,9 +396,9 @@ export default function PurchaseOrderManagement() {
 
       <Card>
         <CardHeader>
-          <CardTitle>All Purchase Orders ({purchaseOrders.length})</CardTitle>
+          <CardTitle>{t("po.allOrders")} ({purchaseOrders.length})</CardTitle>
           <CardDescription>
-            List of all purchase orders. Pending orders can be approved or rejected by admin or accountant.
+            {language === "ar" ? "قائمة بجميع أوامر الشراء. يمكن للمدير أو المحاسب الموافقة على الطلبات المعلقة أو رفضها." : "List of all purchase orders. Pending orders can be approved or rejected by admin or accountant."}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -401,27 +406,27 @@ export default function PurchaseOrderManagement() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>PO Number</TableHead>
-                  <TableHead>Amount</TableHead>
-                  <TableHead>Description</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Created By</TableHead>
-                  <TableHead>Approved By</TableHead>
-                  <TableHead>Created At</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                  <TableHead>{t("po.number")}</TableHead>
+                  <TableHead>{t("common.amount")}</TableHead>
+                  <TableHead>{t("common.description")}</TableHead>
+                  <TableHead>{t("common.status")}</TableHead>
+                  <TableHead>{t("common.createdBy")}</TableHead>
+                  <TableHead>{t("po.firstApprovedBy")}</TableHead>
+                  <TableHead>{t("common.date")}</TableHead>
+                  <TableHead className="text-right">{t("common.actions")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {loading ? (
                   <TableRow>
                     <TableCell colSpan={10} className="text-center py-8">
-                      Loading purchase orders...
+                      {t("po.loadingOrders")}
                     </TableCell>
                   </TableRow>
                 ) : purchaseOrders.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={10} className="text-center py-8 text-gray-500">
-                      No purchase orders found. Click "New Purchase Order" to create one.
+                      {t("po.noOrdersFound")}
                     </TableCell>
                   </TableRow>
                 ) : (
@@ -430,10 +435,10 @@ export default function PurchaseOrderManagement() {
                       <TableCell className="font-medium">{po.po_number}</TableCell>
                       <TableCell>{formatCurrency(po.amount)}</TableCell>
                       <TableCell className="max-w-[200px] truncate">
-                        {po.description || "No description"}
+                        {po.description || t("general.noDescription")}
                       </TableCell>
                       <TableCell>{getStatusBadge(po.status)}</TableCell>
-                      <TableCell>{po.created_by_user?.name || "Unknown"}</TableCell>
+                      <TableCell>{po.created_by_user?.name || t("general.unknown")}</TableCell>
                       <TableCell>
                         {po.approved_by_1_user?.name ? (
                           <div>
@@ -497,7 +502,7 @@ export default function PurchaseOrderManagement() {
                                   title="Admin Approval (First Approval)"
                                 >
                                   <CheckCircle className="h-4 w-4 mr-1" />
-                                  Admin Approve
+                                  {t("po.adminApprove")}
                                 </Button>
                               )}
                               {canApprove && (
@@ -518,10 +523,10 @@ export default function PurchaseOrderManagement() {
                               size="sm"
                               className="text-green-600 hover:text-green-700"
                               onClick={() => handleApprove(po.id, 'accountant')}
-                              title="Accountant Approval (Second Approval)"
+                              title={t("po.accountantApprove")}
                             >
                               <CheckCircle className="h-4 w-4 mr-1" />
-                              Accountant Approve
+                              {t("po.accountantApprove")}
                             </Button>
                           )}
                           {po.status === 'first_approved' && canApprove && (
@@ -640,7 +645,7 @@ export default function PurchaseOrderManagement() {
             </div>
           )}
           <DialogFooter>
-            <Button onClick={() => setIsViewDialogOpen(false)}>Close</Button>
+            <Button onClick={() => setIsViewDialogOpen(false)}>{t("common.close")}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -673,10 +678,10 @@ export default function PurchaseOrderManagement() {
               setRejectionReason("")
               setRejectingPOId(null)
             }}>
-              Cancel
+              {t("common.cancel")}
             </Button>
             <Button variant="destructive" onClick={handleReject}>
-              Reject Purchase Order
+              {t("po.reject")}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -6,6 +6,7 @@ import { Toaster } from "@/components/ui/toaster"
 import { ThemeProvider } from "@/components/theme-provider"
 import Navigation from "@/components/navigation"
 import AuthGuard from "@/components/auth-guard"
+import { LanguageProvider } from "@/lib/language-context"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -27,11 +28,13 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <body className={inter.className}>
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
-          <AuthGuard>
-            <Navigation />
-            <main>{children}</main>
-            <Toaster />
-          </AuthGuard>
+          <LanguageProvider>
+            <AuthGuard>
+              <Navigation />
+              <main>{children}</main>
+              <Toaster />
+            </AuthGuard>
+          </LanguageProvider>
         </ThemeProvider>
       </body>
     </html>
