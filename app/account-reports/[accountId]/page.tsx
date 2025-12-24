@@ -1,17 +1,16 @@
 "use client"
 
-import { useEffect } from "react"
+import { useEffect, use, useState } from "react"
 import { useRouter } from "next/navigation"
 import { notFound } from "next/navigation"
 import AccountDetailReport from "@/components/account-detail-report"
 import { AccountingService } from "@/lib/accounting-utils"
 import { getCurrentUser, isRegularUser } from "@/lib/auth-utils"
-import { useState } from "react"
 
 interface AccountReportPageProps {
-  params: {
+  params: Promise<{
     accountId: string
-  }
+  }>
 }
 
 export default function AccountReportPage({ params }: AccountReportPageProps) {
@@ -19,6 +18,9 @@ export default function AccountReportPage({ params }: AccountReportPageProps) {
   const currentUser = getCurrentUser()
   const [account, setAccount] = useState<any>(null)
   const [loading, setLoading] = useState(true)
+  
+  // Unwrap the params Promise
+  const { accountId } = use(params)
 
   useEffect(() => {
     if (isRegularUser(currentUser)) {
@@ -29,7 +31,7 @@ export default function AccountReportPage({ params }: AccountReportPageProps) {
     async function loadAccount() {
       try {
         const accounts = await AccountingService.getChartOfAccounts()
-        const foundAccount = accounts.find(acc => acc.id === params.accountId)
+        const foundAccount = accounts.find(acc => acc.id === accountId)
         
         if (!foundAccount) {
           notFound()
@@ -43,7 +45,7 @@ export default function AccountReportPage({ params }: AccountReportPageProps) {
       }
     }
     loadAccount()
-  }, [currentUser, router, params.accountId])
+  }, [currentUser, router, accountId])
 
   if (isRegularUser(currentUser) || loading) {
     return null
@@ -56,7 +58,7 @@ export default function AccountReportPage({ params }: AccountReportPageProps) {
   return (
     <div className="container mx-auto px-4 py-8">
       <AccountDetailReport 
-        accountId={params.accountId}
+        accountId={accountId}
         accountCode={account.code}
         accountName={account.name}
       />

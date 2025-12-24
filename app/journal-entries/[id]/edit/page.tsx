@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useEffect, useState } from "react"
+import React, { useEffect, useState, use } from "react"
 import { useRouter } from "next/navigation"
 import { notFound } from "next/navigation"
 import { AccountingService } from "@/lib/accounting-utils"
@@ -8,14 +8,17 @@ import JournalEntryEditForm from "@/components/journal-entry-edit-form"
 import { getCurrentUser, canEditAccountingData, isRegularUser } from "@/lib/auth-utils"
 
 interface EditPageProps {
-  params: {
+  params: Promise<{
     id: string
-  }
+  }>
 }
 
 export default function EditJournalEntryPage({ params }: EditPageProps) {
   const router = useRouter()
   const currentUser = getCurrentUser()
+  
+  // Unwrap the params Promise
+  const { id } = use(params)
 
   useEffect(() => {
     // Redirect regular users to purchase orders
@@ -44,7 +47,7 @@ export default function EditJournalEntryPage({ params }: EditPageProps) {
     )
   }
 
-  return <JournalEntryEditFormWrapper entryId={params.id} />
+  return <JournalEntryEditFormWrapper entryId={id} />
 }
 
 function JournalEntryEditFormWrapper({ entryId }: { entryId: string }) {

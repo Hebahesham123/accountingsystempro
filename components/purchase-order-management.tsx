@@ -453,6 +453,7 @@ export default function PurchaseOrderManagement() {
                   <TableHead>{t("common.status")}</TableHead>
                   <TableHead>{t("common.createdBy")}</TableHead>
                   <TableHead>{t("po.firstApprovedBy")}</TableHead>
+                  <TableHead>Second Approved By</TableHead>
                   {canApprove && (
                     <TableHead>Supply Status</TableHead>
                   )}
@@ -463,13 +464,13 @@ export default function PurchaseOrderManagement() {
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={canApprove ? 9 : 8} className="text-center py-8">
+                    <TableCell colSpan={canApprove ? 10 : 9} className="text-center py-8">
                       {t("po.loadingOrders")}
                     </TableCell>
                   </TableRow>
                 ) : purchaseOrders.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={canApprove ? 9 : 8} className="text-center py-8 text-gray-500">
+                    <TableCell colSpan={canApprove ? 10 : 9} className="text-center py-8 text-gray-500">
                       {t("po.noOrdersFound")}
                     </TableCell>
                   </TableRow>
@@ -482,13 +483,32 @@ export default function PurchaseOrderManagement() {
                         {po.description || t("general.noDescription")}
                       </TableCell>
                       <TableCell>{getStatusBadge(po.status)}</TableCell>
-                      <TableCell>{po.created_by_user?.name || t("general.unknown")}</TableCell>
+                      <TableCell>
+                        <div>
+                          <div className="font-medium">{po.created_by_user?.name || t("general.unknown")}</div>
+                          {po.created_by_user?.email && (
+                            <div className="text-xs text-muted-foreground">
+                              {po.created_by_user.email}
+                            </div>
+                          )}
+                        </div>
+                      </TableCell>
                       <TableCell>
                         {po.approved_by_1_user?.name ? (
                           <div>
-                            <div>{po.approved_by_1_user.name}</div>
+                            <div className="font-medium">{po.approved_by_1_user.name}</div>
                             <div className="text-xs text-muted-foreground">
                               {po.approved_at_1 ? new Date(po.approved_at_1).toLocaleDateString() : ""}
+                            </div>
+                          </div>
+                        ) : "-"}
+                      </TableCell>
+                      <TableCell>
+                        {po.approved_by_2_user?.name ? (
+                          <div>
+                            <div className="font-medium">{po.approved_by_2_user.name}</div>
+                            <div className="text-xs text-muted-foreground">
+                              {po.approved_at_2 ? new Date(po.approved_at_2).toLocaleDateString() : ""}
                             </div>
                           </div>
                         ) : "-"}
@@ -685,6 +705,9 @@ export default function PurchaseOrderManagement() {
                 <div>
                   <Label className="text-muted-foreground">Created By</Label>
                   <p className="font-medium">{viewingPO.created_by_user?.name || "Unknown"}</p>
+                  {viewingPO.created_by_user?.email && (
+                    <p className="text-sm text-muted-foreground">{viewingPO.created_by_user.email}</p>
+                  )}
                 </div>
                 {viewingPO.approved_by_1_user && (
                   <div>

@@ -124,13 +124,10 @@ export default function LoginPage() {
 
           <div className="mt-6 pt-6 border-t">
             <p className="text-xs text-center text-muted-foreground">
-              {language === "ar" ? "بيانات النظام:" : "System Credentials:"}
+              {language === "ar" 
+                ? "للحصول على بيانات الدخول، يرجى الاتصال بالمدير" 
+                : "For login credentials, please contact your administrator"}
             </p>
-            <div className="mt-2 space-y-1 text-xs text-center text-muted-foreground">
-              <p>{language === "ar" ? "مدير: admin@gmail.com / 1234" : "Admin: admin@gmail.com / 1234"}</p>
-              <p>{language === "ar" ? "محاسب: accountant@gmail.com / 5678" : "Accountant: accountant@gmail.com / 5678"}</p>
-              <p>{language === "ar" ? "مستخدم: user@gmail.com / 9012" : "User: user@gmail.com / 9012"}</p>
-            </div>
           </div>
         </CardContent>
       </Card>
