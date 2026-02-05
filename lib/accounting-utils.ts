@@ -1014,11 +1014,51 @@ export class AccountingService {
         throw new Error(`Invalid account ID format detected. Please refresh the page and try again.`)
       }
       
-      console.log("Validating account IDs:", accountIds)
+      console.log("Validating account IDs:", {
+        count: accountIds.length,
+        ids: accountIds,
+        entryLinesCount: entry.lines.length
+      })
+      
+      // Query accounts - don't filter by is_active here, we'll check that separately
       const { data: accounts, error: accountsError } = await supabase
         .from("accounts")
         .select("id, code, name, is_active")
         .in("id", accountIds)
+      
+      console.log("Account validation query result:", {
+        foundCount: accounts?.length || 0,
+        requestedCount: accountIds.length,
+        accounts: accounts?.map(a => ({ id: a.id, code: a.code, name: a.name, is_active: a.is_active })) || [],
+        error: accountsError
+      })
+      
+      // If query returned fewer accounts than requested, try to find which ones are missing
+      // by querying them individually (in case .in() has issues with certain IDs)
+      if (accounts && accounts.length < accountIds.length && !accountsError) {
+        const foundIds = new Set(accounts.map(a => a.id))
+        const missingIds = accountIds.filter(id => !foundIds.has(id))
+        
+        if (missingIds.length > 0) {
+          console.warn("Some accounts not found in batch query, checking individually:", missingIds)
+          
+          // Try to find missing accounts individually
+          for (const missingId of missingIds) {
+            const { data: singleAccount, error: singleError } = await supabase
+              .from("accounts")
+              .select("id, code, name, is_active")
+              .eq("id", missingId)
+              .single()
+            
+            if (singleAccount && !singleError) {
+              console.log(`Found missing account individually: ${singleAccount.code} - ${singleAccount.name}`)
+              accounts.push(singleAccount)
+            } else {
+              console.error(`Account ${missingId} not found in database:`, singleError)
+            }
+          }
+        }
+      }
 
       if (accountsError) {
         console.error("Error validating accounts:", accountsError)
@@ -1030,14 +1070,42 @@ export class AccountingService {
       }
 
       if (accounts.length !== accountIds.length) {
-        const foundIds = accounts.map(a => a.id)
-        const missingIds = accountIds.filter(id => !foundIds.includes(id))
-        console.error("Account validation failed:", {
-          requested: accountIds,
-          found: foundIds,
-          missing: missingIds
+        const foundIds = new Set(accounts.map(a => a.id))
+        const missingIds = accountIds.filter(id => !foundIds.has(id))
+        
+        // Try to get account codes for missing accounts from the entry lines
+        const missingAccountInfo = missingIds.map(id => {
+          const line = entry.lines.find(l => l.account_id === id)
+          // Try to find account code if we have it in the description or can infer it
+          return {
+            id: id,
+            idShort: id.substring(0, 8) + '...',
+            lineDescription: line?.description || 'N/A'
+          }
         })
-        throw new Error(`Accounts not found: ${missingIds.join(', ')}`)
+        
+        console.error("Account validation failed - detailed info:", {
+          requestedCount: accountIds.length,
+          foundCount: accounts.length,
+          missingCount: missingIds.length,
+          requestedIds: accountIds,
+          foundIds: Array.from(foundIds),
+          missingIds: missingIds,
+          missingAccountInfo: missingAccountInfo,
+          foundAccounts: accounts.map(a => ({ id: a.id, code: a.code, name: a.name }))
+        })
+        
+        // More detailed error message with account IDs
+        const missingIdsStr = missingIds.length > 0 
+          ? missingIds.map((id, idx) => {
+              const info = missingAccountInfo[idx]
+              return `${info.idShort} (${info.lineDescription})`
+            }).join(', ')
+          : 'unknown accounts'
+        
+        const errorMsg = `Accounts not found (${missingIds.length} of ${accountIds.length} missing): ${missingIdsStr}. The selected accounts may have been deleted or are no longer available. Please refresh the page and reselect accounts.`
+        
+        throw new Error(errorMsg)
       }
 
       const inactiveAccounts = accounts.filter(account => !account.is_active)

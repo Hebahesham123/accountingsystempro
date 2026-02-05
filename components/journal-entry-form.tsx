@@ -535,6 +535,20 @@ export default function JournalEntryForm() {
       }
 
       const currentUser = getCurrentUser()
+      
+      // Log what we're about to send for debugging
+      console.log("Submitting journal entry with lines:", {
+        lineCount: entryLines.length,
+        accountIds: entryLines.map(l => l.account_id),
+        entryLines: entryLines.map(l => ({
+          account_id: l.account_id,
+          debit: l.debit_amount,
+          credit: l.credit_amount
+        })),
+        loadedAccountsCount: accounts.length,
+        loadedAccountIds: accounts.map(a => a.id)
+      })
+      
       await AccountingService.createJournalEntry({
         entry_date: formData.entry_date,
         description: formData.description,
