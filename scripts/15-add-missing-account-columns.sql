@@ -43,3 +43,6 @@ WHERE table_name = 'accounts'
 AND column_name IN ('is_header', 'cash_flow_category')
 ORDER BY column_name;
 
+
+
+

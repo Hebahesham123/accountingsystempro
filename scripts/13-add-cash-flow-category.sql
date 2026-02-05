@@ -14,3 +14,6 @@ UPDATE accounts
 SET cash_flow_category = 'operating' 
 WHERE cash_flow_category IS NULL;
 
+
+
+

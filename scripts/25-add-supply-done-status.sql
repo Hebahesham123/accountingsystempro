@@ -1,3 +1,4 @@
+
 -- Add supply_done status to purchase_orders table
 -- This allows users to mark approved purchase orders as supply done
 
@@ -11,4 +12,7 @@ ALTER TABLE purchase_orders
 
 -- Step 2: Update comments
 COMMENT ON COLUMN purchase_orders.status IS 'Order status: pending, first_approved, approved, rejected, or supply_done';
+
+
+
 

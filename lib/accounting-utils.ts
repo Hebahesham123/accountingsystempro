@@ -994,7 +994,27 @@ export class AccountingService {
       }
 
       // Validate accounts exist
-      const accountIds = entry.lines.map(line => line.account_id)
+      const accountIds = entry.lines
+        .map(line => line.account_id)
+        .filter(id => id && typeof id === 'string' && id.trim() !== "") // Filter out empty strings and invalid types
+      
+      if (accountIds.length === 0) {
+        throw new Error("No valid account IDs provided. Please select accounts for all lines.")
+      }
+      
+      if (accountIds.length !== entry.lines.length) {
+        throw new Error("One or more lines have missing account selections. Please select an account for each line.")
+      }
+      
+      // Validate UUID format (basic check)
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+      const invalidIds = accountIds.filter(id => !uuidRegex.test(id))
+      if (invalidIds.length > 0) {
+        console.error("Invalid account ID format detected:", invalidIds)
+        throw new Error(`Invalid account ID format detected. Please refresh the page and try again.`)
+      }
+      
+      console.log("Validating account IDs:", accountIds)
       const { data: accounts, error: accountsError } = await supabase
         .from("accounts")
         .select("id, code, name, is_active")
@@ -1012,6 +1032,11 @@ export class AccountingService {
       if (accounts.length !== accountIds.length) {
         const foundIds = accounts.map(a => a.id)
         const missingIds = accountIds.filter(id => !foundIds.includes(id))
+        console.error("Account validation failed:", {
+          requested: accountIds,
+          found: foundIds,
+          missing: missingIds
+        })
         throw new Error(`Accounts not found: ${missingIds.join(', ')}`)
       }
 

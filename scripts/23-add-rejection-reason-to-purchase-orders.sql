@@ -22,3 +22,6 @@ ALTER TABLE purchase_orders
 COMMENT ON COLUMN purchase_orders.rejection_reason IS 'Reason provided when purchase order is rejected';
 COMMENT ON COLUMN purchase_orders.status IS 'Order status: pending, first_approved, approved, or rejected';
 
+
+
+

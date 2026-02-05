@@ -154,3 +154,6 @@ WHERE email IN ('admin@gmail.com', 'accountant@gmail.com', 'user@gmail.com');
 -- 3. Test users exist: Delete them or update to production emails
 -- 4. No admin users: Run scripts/27-create-production-admin.sql
 
+
+
+

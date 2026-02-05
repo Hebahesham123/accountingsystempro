@@ -191,3 +191,6 @@ CREATE POLICY "Service role can manage purchase orders" ON purchase_orders
 -- SELECT tablename, rowsecurity FROM pg_tables WHERE schemaname = 'public';
 -- ============================================
 
+
+
+

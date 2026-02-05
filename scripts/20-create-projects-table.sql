@@ -29,3 +29,6 @@ ON CONFLICT (name) DO NOTHING;
 COMMENT ON TABLE projects IS 'Projects that can be assigned to journal entry lines';
 COMMENT ON COLUMN journal_entry_lines.project_id IS 'Reference to the project assigned to this journal entry line';
 
+
+
+

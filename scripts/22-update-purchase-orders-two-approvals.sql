@@ -46,3 +46,6 @@ COMMENT ON COLUMN purchase_orders.approved_by_1 IS 'First user who approved the 
 COMMENT ON COLUMN purchase_orders.approved_by_2 IS 'Second user who approved the purchase order (admin or accountant)';
 COMMENT ON COLUMN purchase_orders.rejected_by IS 'User who rejected the purchase order (admin or accountant)';
 
+
+
+

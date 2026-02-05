@@ -487,17 +487,52 @@ export default function JournalEntryForm() {
 
       // Convert lines to the format expected by the service
       // Round amounts to 2 decimal places to avoid floating point precision issues
-      const entryLines = validLines.map((line) => {
-        const roundedAmount = Math.round(line.amount * 100) / 100
-        return {
-          account_id: line.account_id,
-          description: line.description || formData.description,
-          project_id: line.project_id || undefined,
-          debit_amount: line.type === "debit" ? roundedAmount : 0,
-          credit_amount: line.type === "credit" ? roundedAmount : 0,
-          image_data: line.image_data,
-        }
-      })
+      const entryLines = validLines
+        .filter(line => line.account_id && line.account_id.trim() !== "") // Additional safety check
+        .map((line) => {
+          const roundedAmount = Math.round(line.amount * 100) / 100
+          return {
+            account_id: line.account_id.trim(), // Ensure no leading/trailing whitespace
+            description: line.description || formData.description,
+            project_id: line.project_id || undefined,
+            debit_amount: line.type === "debit" ? roundedAmount : 0,
+            credit_amount: line.type === "credit" ? roundedAmount : 0,
+            image_data: line.image_data,
+          }
+        })
+      
+      if (entryLines.length !== validLines.length) {
+        toast({
+          title: "Validation Error",
+          description: "Some lines have invalid account selections. Please check all lines.",
+          variant: "destructive",
+        })
+        return
+      }
+      
+      if (entryLines.length < 2) {
+        toast({
+          title: "Insufficient Lines",
+          description: "At least two lines with valid accounts and amounts are required",
+          variant: "destructive",
+        })
+        return
+      }
+      
+      // Verify all account IDs exist in the loaded accounts
+      const accountIdsInEntry = entryLines.map(line => line.account_id)
+      const loadedAccountIds = new Set(accounts.map(acc => acc.id))
+      const missingAccountIds = accountIdsInEntry.filter(id => !loadedAccountIds.has(id))
+      
+      if (missingAccountIds.length > 0) {
+        console.error("Account IDs not found in loaded accounts:", missingAccountIds)
+        toast({
+          title: "Account Validation Error",
+          description: "Some selected accounts are no longer available. Please refresh the page and try again.",
+          variant: "destructive",
+        })
+        return
+      }
 
       const currentUser = getCurrentUser()
       await AccountingService.createJournalEntry({
@@ -514,9 +549,11 @@ export default function JournalEntryForm() {
 
       resetForm()
     } catch (error) {
+      console.error("Error creating journal entry:", error)
+      const errorMessage = error instanceof Error ? error.message : "Failed to create journal entry"
       toast({
         title: "Error",
-        description: "Failed to create journal entry",
+        description: errorMessage,
         variant: "destructive",
       })
     } finally {

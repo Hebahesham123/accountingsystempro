@@ -24,3 +24,6 @@ WHERE name IN ('Revenue', 'Expense');
 -- But we'll leave them as operating by default and let users change
 
 
+
+
+
