@@ -1146,12 +1146,11 @@ export class AccountingService {
         throw new Error("No accounts found. Please ensure accounts exist in the system.")
       }
 
-      // Check for duplicate account IDs in the request
+      // Note: Duplicate account IDs are allowed - the same account can appear in multiple lines
+      // (e.g., multiple credits to the same revenue account). This is valid in accounting.
       const uniqueAccountIds = new Set(accountIds)
-      if (uniqueAccountIds.size !== accountIds.length) {
-        const duplicates = accountIds.filter((id, index) => accountIds.indexOf(id) !== index)
-        console.error("Duplicate account IDs detected in journal entry lines:", duplicates)
-        throw new Error(`Duplicate account selections detected. Each line must have a unique account. Please check your journal entry lines.`)
+      if (uniqueAccountIds.size < accountIds.length) {
+        console.log(`Note: ${accountIds.length - uniqueAccountIds.size} duplicate account selection(s) detected. This is allowed - same account can be used in multiple lines.`)
       }
 
       // Check if we found all unique account IDs (accounting for duplicates in request)
