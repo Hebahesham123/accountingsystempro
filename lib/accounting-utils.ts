@@ -1026,47 +1026,112 @@ export class AccountingService {
         throw new Error(`Invalid account ID format detected. Please refresh the page and try again.`)
       }
       
+      console.log("=== ACCOUNT VALIDATION START ===")
       console.log("Validating account IDs:", {
         count: accountIds.length,
         ids: accountIds,
-        entryLinesCount: entry.lines.length
+        entryLinesCount: entry.lines.length,
+        uniqueCount: new Set(accountIds).size
       })
       
+      // Remove duplicates for query (but we'll validate duplicates separately)
+      const uniqueAccountIdsForQuery = [...new Set(accountIds)]
+      console.log("Unique account IDs for query:", uniqueAccountIdsForQuery.length)
+      
       // Query accounts - don't filter by is_active here, we'll check that separately
+      // Use .in() with unique IDs to avoid query issues
       const { data: accounts, error: accountsError } = await supabase
         .from("accounts")
         .select("id, code, name, is_active")
-        .in("id", accountIds)
+        .in("id", uniqueAccountIdsForQuery)
       
       console.log("Account validation query result:", {
         foundCount: accounts?.length || 0,
         requestedCount: accountIds.length,
+        uniqueRequestedCount: uniqueAccountIdsForQuery.length,
         accounts: accounts?.map(a => ({ id: a.id, code: a.code, name: a.name, is_active: a.is_active })) || [],
-        error: accountsError
+        error: accountsError,
+        errorDetails: accountsError ? {
+          code: accountsError.code,
+          message: accountsError.message,
+          details: accountsError.details,
+          hint: accountsError.hint
+        } : null
       })
+      
+      // If we got an error, try to understand why
+      if (accountsError) {
+        console.error("Supabase query error details:", {
+          code: accountsError.code,
+          message: accountsError.message,
+          details: accountsError.details,
+          hint: accountsError.hint,
+          queryIds: uniqueAccountIdsForQuery,
+          queryIdsCount: uniqueAccountIdsForQuery.length
+        })
+      }
       
       // If query returned fewer accounts than requested, try to find which ones are missing
       // by querying them individually (in case .in() has issues with certain IDs)
-      if (accounts && accounts.length < accountIds.length && !accountsError) {
+      if (accounts && accounts.length < uniqueAccountIdsForQuery.length && !accountsError) {
         const foundIds = new Set(accounts.map(a => a.id))
-        const missingIds = accountIds.filter(id => !foundIds.has(id))
+        const missingIds = uniqueAccountIdsForQuery.filter(id => !foundIds.has(id))
         
         if (missingIds.length > 0) {
           console.warn("Some accounts not found in batch query, checking individually:", missingIds)
           
           // Try to find missing accounts individually
           for (const missingId of missingIds) {
-            const { data: singleAccount, error: singleError } = await supabase
+            console.log(`Checking account individually: ${missingId}`)
+            
+            // Try exact match first
+            let singleAccount = null
+            let singleError = null
+            
+            const { data: accountData, error: accountErr } = await supabase
               .from("accounts")
               .select("id, code, name, is_active")
               .eq("id", missingId)
-              .single()
+              .maybeSingle()
+            
+            singleAccount = accountData
+            singleError = accountErr
+            
+            // If not found, try case-insensitive search (shouldn't be needed for UUIDs, but just in case)
+            if (!singleAccount && !singleError) {
+              console.warn(`Account ${missingId} not found with exact match, trying alternative...`)
+              
+              // Check if maybe the ID has extra whitespace or formatting issues
+              const trimmedId = missingId.trim()
+              if (trimmedId !== missingId) {
+                const { data: trimmedAccount, error: trimmedError } = await supabase
+                  .from("accounts")
+                  .select("id, code, name, is_active")
+                  .eq("id", trimmedId)
+                  .maybeSingle()
+                
+                if (trimmedAccount) {
+                  singleAccount = trimmedAccount
+                  console.log(`Found account with trimmed ID: ${trimmedAccount.code} - ${trimmedAccount.name}`)
+                }
+              }
+            }
             
             if (singleAccount && !singleError) {
-              console.log(`Found missing account individually: ${singleAccount.code} - ${singleAccount.name}`)
+              console.log(`✓ Found missing account individually: ${singleAccount.code} - ${singleAccount.name} (${singleAccount.id})`)
               accounts.push(singleAccount)
             } else {
-              console.error(`Account ${missingId} not found in database:`, singleError)
+              console.error(`✗ Account ${missingId} not found in database. Error:`, singleError)
+              
+              // Try to find any account with similar ID (for debugging)
+              const { data: allAccounts, error: allError } = await supabase
+                .from("accounts")
+                .select("id, code, name")
+                .limit(5)
+              
+              if (!allError && allAccounts) {
+                console.error("Sample of accounts in database:", allAccounts.map(a => ({ id: a.id, code: a.code })))
+              }
             }
           }
         }
@@ -1089,30 +1154,50 @@ export class AccountingService {
         throw new Error(`Duplicate account selections detected. Each line must have a unique account. Please check your journal entry lines.`)
       }
 
-      if (accounts.length !== accountIds.length) {
-        const foundIds = new Set(accounts.map(a => a.id))
-        const missingIds = accountIds.filter(id => !foundIds.has(id))
-        
+      // Check if we found all unique account IDs (accounting for duplicates in request)
+      const foundIds = new Set(accounts.map(a => a.id))
+      const uniqueRequestedIds = new Set(accountIds)
+      const missingUniqueIds = Array.from(uniqueRequestedIds).filter(id => !foundIds.has(id))
+      
+      if (missingUniqueIds.length > 0 || accounts.length !== uniqueAccountIdsForQuery.length) {
         // Log comprehensive debugging info
         console.error("=== ACCOUNT VALIDATION FAILED ===")
-        console.error("Requested account IDs:", accountIds)
+        console.error("Requested account IDs (with duplicates):", accountIds)
+        console.error("Unique requested account IDs:", Array.from(uniqueRequestedIds))
         console.error("Found account IDs:", Array.from(foundIds))
-        console.error("Missing account IDs:", missingIds)
+        console.error("Missing unique account IDs:", missingUniqueIds)
         console.error("Found accounts:", accounts.map(a => ({ id: a.id, code: a.code, name: a.name, is_active: a.is_active })))
-        console.error("Requested count:", accountIds.length, "Found count:", accounts.length, "Missing count:", missingIds.length)
+        console.error("Requested count (with duplicates):", accountIds.length)
+        console.error("Unique requested count:", uniqueRequestedIds.size)
+        console.error("Found count:", accounts.length)
+        console.error("Missing unique count:", missingUniqueIds.length)
+        
+        // Try to find which lines have the missing accounts
+        const missingAccountDetails = missingUniqueIds.map(id => {
+          const linesWithThisAccount = entry.lines
+            .map((line, idx) => ({ line, idx }))
+            .filter(({ line }) => line.account_id === id)
+            .map(({ idx }) => idx + 1)
+          return {
+            id: id,
+            idShort: id.substring(0, 8) + '...',
+            lines: linesWithThisAccount
+          }
+        })
+        
+        console.error("Missing account details:", missingAccountDetails)
         
         // Build detailed error message
         let errorMsg = `Accounts not found: `
         
-        if (missingIds.length > 0) {
-          const missingDetails = missingIds.map(id => {
-            const line = entry.lines.find(l => l.account_id === id)
-            return `${id.substring(0, 8)}... (line: ${line ? entry.lines.indexOf(line) + 1 : 'unknown'})`
-          })
-          errorMsg += `${missingIds.length} of ${accountIds.length} accounts missing: ${missingDetails.join(', ')}. `
+        if (missingUniqueIds.length > 0) {
+          const missingDetails = missingAccountDetails.map(detail => 
+            `Account ${detail.idShort} (used in lines: ${detail.lines.join(', ')})`
+          )
+          errorMsg += `${missingUniqueIds.length} unique account(s) missing: ${missingDetails.join('; ')}. `
         } else {
-          // Edge case: accounts.length != accountIds.length but no missing IDs (shouldn't happen)
-          errorMsg += `Expected ${accountIds.length} accounts but found ${accounts.length}. `
+          // Edge case: accounts.length != uniqueAccountIdsForQuery.length but no missing IDs
+          errorMsg += `Expected ${uniqueAccountIdsForQuery.length} unique accounts but found ${accounts.length}. `
           console.error("EDGE CASE: Length mismatch but no missing IDs detected!")
         }
         
@@ -1120,6 +1205,14 @@ export class AccountingService {
         
         throw new Error(errorMsg)
       }
+      
+      // If we have duplicates in the request but all unique IDs were found, that's okay
+      // (same account can be used in multiple lines)
+      console.log("✓ Account validation passed:", {
+        uniqueAccountsFound: accounts.length,
+        totalLines: accountIds.length,
+        uniqueLines: uniqueRequestedIds.size
+      })
 
       const inactiveAccounts = accounts.filter(account => !account.is_active)
       if (inactiveAccounts.length > 0) {
