@@ -978,7 +978,12 @@ export class AccountingService {
     }>
   }): Promise<string> {
     try {
-      console.log("Creating journal entry:", entry)
+      console.log("Creating journal entry:", {
+        entry_date: entry.entry_date,
+        description: entry.description,
+        linesCount: entry.lines.length,
+        accountIds: entry.lines.map(l => l.account_id)
+      })
       
       // Validate input
       if (!entry.lines || entry.lines.length === 0) {
@@ -993,17 +998,24 @@ export class AccountingService {
         throw new Error("Description is required")
       }
 
-      // Validate accounts exist
-      const accountIds = entry.lines
-        .map(line => line.account_id)
-        .filter(id => id && typeof id === 'string' && id.trim() !== "") // Filter out empty strings and invalid types
+      // Validate accounts exist - check each line individually for better error messages
+      const accountValidationErrors: string[] = []
+      entry.lines.forEach((line, index) => {
+        if (!line.account_id || typeof line.account_id !== 'string' || line.account_id.trim() === "") {
+          accountValidationErrors.push(`Line ${index + 1} has no account selected`)
+        }
+      })
       
-      if (accountIds.length === 0) {
-        throw new Error("No valid account IDs provided. Please select accounts for all lines.")
+      if (accountValidationErrors.length > 0) {
+        throw new Error(`Invalid account selections: ${accountValidationErrors.join('; ')}. Please select an account for each line.`)
       }
       
-      if (accountIds.length !== entry.lines.length) {
-        throw new Error("One or more lines have missing account selections. Please select an account for each line.")
+      const accountIds = entry.lines.map(line => line.account_id.trim())
+      
+      // Check for empty account IDs (shouldn't happen after above check, but double-check)
+      const emptyIds = accountIds.filter(id => !id || id === "")
+      if (emptyIds.length > 0) {
+        throw new Error(`Found ${emptyIds.length} line(s) with empty account IDs. Please refresh the page and try again.`)
       }
       
       // Validate UUID format (basic check)
@@ -1069,41 +1081,42 @@ export class AccountingService {
         throw new Error("No accounts found. Please ensure accounts exist in the system.")
       }
 
+      // Check for duplicate account IDs in the request
+      const uniqueAccountIds = new Set(accountIds)
+      if (uniqueAccountIds.size !== accountIds.length) {
+        const duplicates = accountIds.filter((id, index) => accountIds.indexOf(id) !== index)
+        console.error("Duplicate account IDs detected in journal entry lines:", duplicates)
+        throw new Error(`Duplicate account selections detected. Each line must have a unique account. Please check your journal entry lines.`)
+      }
+
       if (accounts.length !== accountIds.length) {
         const foundIds = new Set(accounts.map(a => a.id))
         const missingIds = accountIds.filter(id => !foundIds.has(id))
         
-        // Try to get account codes for missing accounts from the entry lines
-        const missingAccountInfo = missingIds.map(id => {
-          const line = entry.lines.find(l => l.account_id === id)
-          // Try to find account code if we have it in the description or can infer it
-          return {
-            id: id,
-            idShort: id.substring(0, 8) + '...',
-            lineDescription: line?.description || 'N/A'
-          }
-        })
+        // Log comprehensive debugging info
+        console.error("=== ACCOUNT VALIDATION FAILED ===")
+        console.error("Requested account IDs:", accountIds)
+        console.error("Found account IDs:", Array.from(foundIds))
+        console.error("Missing account IDs:", missingIds)
+        console.error("Found accounts:", accounts.map(a => ({ id: a.id, code: a.code, name: a.name, is_active: a.is_active })))
+        console.error("Requested count:", accountIds.length, "Found count:", accounts.length, "Missing count:", missingIds.length)
         
-        console.error("Account validation failed - detailed info:", {
-          requestedCount: accountIds.length,
-          foundCount: accounts.length,
-          missingCount: missingIds.length,
-          requestedIds: accountIds,
-          foundIds: Array.from(foundIds),
-          missingIds: missingIds,
-          missingAccountInfo: missingAccountInfo,
-          foundAccounts: accounts.map(a => ({ id: a.id, code: a.code, name: a.name }))
-        })
+        // Build detailed error message
+        let errorMsg = `Accounts not found: `
         
-        // More detailed error message with account IDs
-        const missingIdsStr = missingIds.length > 0 
-          ? missingIds.map((id, idx) => {
-              const info = missingAccountInfo[idx]
-              return `${info.idShort} (${info.lineDescription})`
-            }).join(', ')
-          : 'unknown accounts'
+        if (missingIds.length > 0) {
+          const missingDetails = missingIds.map(id => {
+            const line = entry.lines.find(l => l.account_id === id)
+            return `${id.substring(0, 8)}... (line: ${line ? entry.lines.indexOf(line) + 1 : 'unknown'})`
+          })
+          errorMsg += `${missingIds.length} of ${accountIds.length} accounts missing: ${missingDetails.join(', ')}. `
+        } else {
+          // Edge case: accounts.length != accountIds.length but no missing IDs (shouldn't happen)
+          errorMsg += `Expected ${accountIds.length} accounts but found ${accounts.length}. `
+          console.error("EDGE CASE: Length mismatch but no missing IDs detected!")
+        }
         
-        const errorMsg = `Accounts not found (${missingIds.length} of ${accountIds.length} missing): ${missingIdsStr}. The selected accounts may have been deleted or are no longer available. Please refresh the page and reselect accounts.`
+        errorMsg += `The selected accounts may have been deleted or are no longer available. Please refresh the page and reselect accounts.`
         
         throw new Error(errorMsg)
       }
@@ -1123,10 +1136,27 @@ export class AccountingService {
       }
 
       // Generate entry number
-      const entryNumber = await this.generateEntryNumber()
-      console.log("Generated entry number:", entryNumber)
+      console.log("Step 1: Generating entry number...")
+      let entryNumber: string
+      try {
+        entryNumber = await this.generateEntryNumber()
+        console.log("✓ Generated entry number:", entryNumber)
+      } catch (error) {
+        console.error("✗ Error generating entry number:", error)
+        throw new Error(`Failed to generate entry number: ${error instanceof Error ? error.message : String(error)}`)
+      }
 
       // Create journal entry header
+      console.log("Step 2: Creating journal entry header...")
+      console.log("Entry data:", {
+        entry_number: entryNumber,
+        entry_date: entry.entry_date,
+        description: entry.description.trim(),
+        total_debit: totalDebits,
+        total_credit: totalCredits,
+        created_by: entry.created_by
+      })
+      
       const { data: journalEntry, error: entryError } = await supabase
         .from("journal_entries")
         .insert([
@@ -1145,43 +1175,208 @@ export class AccountingService {
         .single()
 
       if (entryError) {
-        console.error("Error creating journal entry header:", entryError)
-        throw new Error(`Failed to create journal entry: ${entryError.message}`)
+        console.error("✗ Error creating journal entry header:", {
+          error: entryError,
+          code: entryError.code,
+          message: entryError.message,
+          details: entryError.details,
+          hint: entryError.hint
+        })
+        throw new Error(`Failed to create journal entry header: ${entryError.message}${entryError.hint ? ` (${entryError.hint})` : ''}${entryError.code ? ` [Code: ${entryError.code}]` : ''}`)
       }
 
-      console.log("Journal entry header created:", journalEntry.id)
+      if (!journalEntry || !journalEntry.id) {
+        console.error("✗ Journal entry header created but no ID returned:", journalEntry)
+        throw new Error("Journal entry header was created but no ID was returned. Please try again.")
+      }
+
+      console.log("✓ Journal entry header created successfully:", journalEntry.id)
 
       // Create journal entry lines
-      const lines = entry.lines.map((line, index) => ({
-        journal_entry_id: journalEntry.id,
-        account_id: line.account_id,
-        description: line.description?.trim() || entry.description.trim(),
-        project_id: line.project_id || null,
-        debit_amount: line.debit_amount || 0,
-        credit_amount: line.credit_amount || 0,
-        line_number: index + 1,
-        image_data: line.image_data || null,
-      }))
-
-      console.log("Creating journal entry lines:", lines)
-
-      const { error: linesError } = await supabase.from("journal_entry_lines").insert(lines)
-
-      if (linesError) {
-        console.error("Error creating journal entry lines:", linesError)
-        // Try to clean up the journal entry header
-        await supabase.from("journal_entries").delete().eq("id", journalEntry.id)
-        throw new Error(`Failed to create journal entry lines: ${linesError.message}`)
+      console.log("Step 3: Creating journal entry lines...")
+      console.log("Lines count:", entry.lines.length)
+      
+      // Validate project_ids if provided (check they exist in projects table)
+      const projectIds = entry.lines
+        .map(line => line.project_id)
+        .filter(id => id && id.trim() !== "" && id !== "none")
+      
+      if (projectIds.length > 0) {
+        console.log("Validating project IDs:", projectIds)
+        const { data: validProjects, error: projectsError } = await supabase
+          .from("projects")
+          .select("id")
+          .in("id", projectIds)
+        
+        if (projectsError) {
+          console.warn("Error validating projects (continuing anyway):", projectsError)
+        } else if (validProjects) {
+          const validProjectIds = new Set(validProjects.map(p => p.id))
+          const invalidProjectIds = projectIds.filter(id => !validProjectIds.has(id))
+          if (invalidProjectIds.length > 0) {
+            console.warn("Some project IDs are invalid, setting to null:", invalidProjectIds)
+          }
+        }
+      }
+      
+      const lines = entry.lines.map((line, index) => {
+        // Ensure project_id is either a valid UUID or null (not empty string)
+        let projectId = line.project_id
+        if (!projectId || projectId.trim() === "" || projectId === "none") {
+          projectId = null
+        }
+        
+        // Limit image_data size to prevent payload issues (max 1MB per image)
+        let imageData = line.image_data || null
+        if (imageData && imageData.length > 1048576) { // 1MB in bytes
+          console.warn(`Line ${index + 1} has image data larger than 1MB (${(imageData.length / 1048576).toFixed(2)}MB), truncating...`)
+          imageData = null // Set to null if too large to prevent payload issues
+        }
+        
+        return {
+          journal_entry_id: journalEntry.id,
+          account_id: line.account_id,
+          description: line.description?.trim() || entry.description.trim(),
+          project_id: projectId,
+          debit_amount: line.debit_amount || 0,
+          credit_amount: line.credit_amount || 0,
+          line_number: index + 1,
+          image_data: imageData,
+        }
+      })
+      
+      // Calculate approximate payload size
+      const payloadSize = JSON.stringify(lines).length
+      const payloadSizeMB = (payloadSize / 1048576).toFixed(2)
+      console.log(`Total payload size: ${payloadSizeMB}MB (${payloadSize} bytes)`)
+      
+      if (payloadSize > 5242880) { // 5MB warning
+        console.warn(`Large payload detected (${payloadSizeMB}MB). Using chunked inserts to avoid timeout.`)
       }
 
-      console.log("Journal entry created successfully:", journalEntry.id)
+      console.log("Lines to insert (first 3):", lines.slice(0, 3))
+      console.log("All line account IDs:", lines.map(l => l.account_id))
+
+      // Insert lines in chunks to avoid batch size/timeout issues
+      // Supabase can handle large batches, but chunking is safer for very large entries
+      const CHUNK_SIZE = 100 // Insert 100 lines at a time
+      const allInsertedLines: any[] = []
+      let chunkNumber = 0
+
+      console.log(`Inserting ${lines.length} lines in chunks of ${CHUNK_SIZE}...`)
+
+      for (let i = 0; i < lines.length; i += CHUNK_SIZE) {
+        chunkNumber++
+        const chunk = lines.slice(i, i + CHUNK_SIZE)
+        const chunkStart = i + 1
+        const chunkEnd = Math.min(i + CHUNK_SIZE, lines.length)
+        
+        console.log(`Inserting chunk ${chunkNumber}: lines ${chunkStart}-${chunkEnd} (${chunk.length} lines)...`)
+
+        const { data: chunkInsertedLines, error: chunkError } = await supabase
+          .from("journal_entry_lines")
+          .insert(chunk)
+          .select()
+
+        if (chunkError) {
+          console.error(`✗ Error creating journal entry lines (chunk ${chunkNumber}):`, {
+            error: chunkError,
+            code: chunkError.code,
+            message: chunkError.message,
+            details: chunkError.details,
+            hint: chunkError.hint,
+            chunkNumber: chunkNumber,
+            chunkSize: chunk.length,
+            linesInChunk: chunkStart + "-" + chunkEnd,
+            totalLines: lines.length,
+            successfullyInserted: allInsertedLines.length,
+            journalEntryId: journalEntry.id
+          })
+          
+          // Try to clean up the journal entry header and any successfully inserted lines
+          console.log("Attempting to clean up...")
+          console.log(`- Deleting journal entry header (${journalEntry.id})...`)
+          const { error: deleteHeaderError } = await supabase
+            .from("journal_entries")
+            .delete()
+            .eq("id", journalEntry.id)
+          
+          if (deleteHeaderError) {
+            console.error("Failed to delete journal entry header:", deleteHeaderError)
+          } else {
+            console.log("Journal entry header deleted")
+          }
+
+          // Try to delete any lines that were successfully inserted
+          if (allInsertedLines.length > 0) {
+            console.log(`- Deleting ${allInsertedLines.length} successfully inserted lines...`)
+            const insertedLineIds = allInsertedLines.map(l => l.id)
+            const { error: deleteLinesError } = await supabase
+              .from("journal_entry_lines")
+              .delete()
+              .in("id", insertedLineIds)
+            
+            if (deleteLinesError) {
+              console.error("Failed to delete inserted lines:", deleteLinesError)
+            } else {
+              console.log("Inserted lines deleted")
+            }
+          }
+          
+          throw new Error(`Failed to create journal entry lines (chunk ${chunkNumber} of ${Math.ceil(lines.length / CHUNK_SIZE)}): ${chunkError.message}${chunkError.hint ? ` (${chunkError.hint})` : ''}${chunkError.code ? ` [Code: ${chunkError.code}]` : ''}`)
+        }
+
+        if (!chunkInsertedLines || chunkInsertedLines.length !== chunk.length) {
+          console.error(`✗ Chunk ${chunkNumber} incomplete:`, {
+            expected: chunk.length,
+            created: chunkInsertedLines?.length || 0
+          })
+          
+          // Clean up
+          await supabase.from("journal_entries").delete().eq("id", journalEntry.id)
+          if (allInsertedLines.length > 0) {
+            const insertedLineIds = allInsertedLines.map(l => l.id)
+            await supabase.from("journal_entry_lines").delete().in("id", insertedLineIds)
+          }
+          
+          throw new Error(`Failed to create all lines in chunk ${chunkNumber}. Expected ${chunk.length} but only ${chunkInsertedLines?.length || 0} were created.`)
+        }
+
+        allInsertedLines.push(...chunkInsertedLines)
+        console.log(`✓ Chunk ${chunkNumber} inserted successfully: ${chunkInsertedLines.length} lines`)
+      }
+
+      if (allInsertedLines.length !== lines.length) {
+        console.error("✗ Not all lines were created:", {
+          expected: lines.length,
+          created: allInsertedLines.length
+        })
+        // Clean up
+        await supabase.from("journal_entries").delete().eq("id", journalEntry.id)
+        const insertedLineIds = allInsertedLines.map(l => l.id)
+        await supabase.from("journal_entry_lines").delete().in("id", insertedLineIds)
+        throw new Error(`Failed to create all journal entry lines. Expected ${lines.length} but only ${allInsertedLines.length} were created.`)
+      }
+
+      console.log(`✓ All journal entry lines created successfully: ${allInsertedLines.length} lines in ${chunkNumber} chunk(s)`)
+      console.log("✓ Journal entry created successfully:", journalEntry.id)
       return journalEntry.id
     } catch (error) {
-      console.error("Error creating journal entry:", error)
+      // Log full error details
+      console.error("=== ERROR CREATING JOURNAL ENTRY ===")
+      console.error("Error object:", error)
+      console.error("Error type:", typeof error)
+      console.error("Error instanceof Error:", error instanceof Error)
       if (error instanceof Error) {
+        console.error("Error message:", error.message)
+        console.error("Error stack:", error.stack)
+        // Re-throw with full message
         throw error
       }
-      throw new Error("Failed to create journal entry")
+      // If it's not an Error instance, wrap it
+      const errorMessage = error ? String(error) : "Unknown error"
+      console.error("Non-Error thrown:", errorMessage)
+      throw new Error(`Failed to create journal entry: ${errorMessage}`)
     }
   }
 
