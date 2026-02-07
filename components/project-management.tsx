@@ -11,7 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { useToast } from "@/hooks/use-toast"
 import { AccountingService } from "@/lib/accounting-utils"
-import { getCurrentUser, isAdmin, canEditAccountingData } from "@/lib/auth-utils"
+import { getCurrentUser, isAdmin, isAccountant } from "@/lib/auth-utils"
 import { useRouter } from "next/navigation"
 import { useLanguage } from "@/lib/language-context"
 
@@ -30,7 +30,7 @@ export default function ProjectManagement() {
   const { toast } = useToast()
 
   useEffect(() => {
-    if (!isAdmin(currentUser)) {
+    if (!isAdmin(currentUser) && !isAccountant(currentUser)) {
       router.push("/")
       return
     }
@@ -42,11 +42,19 @@ export default function ProjectManagement() {
       setLoading(true)
       const data = await AccountingService.getProjects()
       setProjects(data)
+      
+      // Log for debugging
+      console.log("Loaded projects:", data?.length || 0)
+      
+      if (data && data.length === 0) {
+        console.warn("No active projects found. Check if projects table exists and has data.")
+      }
     } catch (error) {
       console.error("Error loading projects:", error)
+      const errorMessage = error instanceof Error ? error.message : "Failed to load projects"
       toast({
-        title: "Error",
-        description: "Failed to load projects",
+        title: "Error Loading Projects",
+        description: errorMessage,
         variant: "destructive",
       })
     } finally {
@@ -155,7 +163,7 @@ export default function ProjectManagement() {
     }
   }
 
-  if (!isAdmin(currentUser)) {
+  if (!isAdmin(currentUser) && !isAccountant(currentUser)) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <div className="text-center">
@@ -188,8 +196,11 @@ export default function ProjectManagement() {
           {loading ? (
             <div className="text-center py-8">{t("project.loading")}</div>
           ) : projects.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">
-              {t("project.clickToCreate")}
+            <div className="text-center py-8 space-y-4">
+              <p className="text-gray-500">{t("project.clickToCreate")}</p>
+              <p className="text-sm text-gray-400">
+                No active projects found. Click the button above to create your first project.
+              </p>
             </div>
           ) : (
             <Table>

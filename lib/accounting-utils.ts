@@ -3476,12 +3476,26 @@ export class AccountingService {
 
       if (error) {
         console.error("Error fetching projects:", error)
+        // Check if table doesn't exist
+        if (error.code === '42P01' || error.message?.includes('does not exist')) {
+          console.error("Projects table does not exist. Please run the database migration script: scripts/20-create-projects-table.sql")
+          throw new Error("Projects table does not exist. Please run the database migration script.")
+        }
+        // Check for RLS policy issues
+        if (error.code === '42501' || error.message?.includes('permission denied') || error.message?.includes('policy')) {
+          console.error("Permission denied. Check RLS policies. Please run: scripts/26-enable-rls-policies.sql")
+          throw new Error("Permission denied. Please check Row Level Security policies.")
+        }
         throw error
       }
 
       return data || []
     } catch (error) {
       console.error("Error loading projects:", error)
+      // Re-throw to allow component to handle it properly
+      if (error instanceof Error && (error.message.includes("does not exist") || error.message.includes("Permission denied"))) {
+        throw error
+      }
       return []
     }
   }
