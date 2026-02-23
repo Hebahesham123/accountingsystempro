@@ -36,3 +36,4 @@ WHERE email = 'admin@yourcompany.com';  -- CHANGE THIS to your admin email
 
 
 
+

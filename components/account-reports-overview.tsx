@@ -44,11 +44,26 @@ export default function AccountReportsOverview() {
     if (startDate && endDate) {
       loadAccounts()
     }
-  }, [startDate, endDate])
+  }, [startDate, endDate, viewMode])
 
   useEffect(() => {
     filterAccounts()
-  }, [accounts, searchTerm, selectedAccountType])
+  }, [accounts, searchTerm, selectedAccountType, viewMode])
+
+  // When user searches or filters, expand all so sub-account matches are visible
+  useEffect(() => {
+    if ((searchTerm.trim() || selectedAccountType !== "All Types") && viewMode === "hierarchical" && accounts.length > 0) {
+      const allIds = (function collectIds(list: AccountSummaryReport[]): string[] {
+        const ids: string[] = []
+        for (const a of list) {
+          if (a.has_sub_accounts && a.sub_accounts?.length) ids.push(a.account_id)
+          if (a.sub_accounts?.length) ids.push(...collectIds(a.sub_accounts))
+        }
+        return ids
+      })(accounts)
+      setExpandedAccounts(new Set(allIds))
+    }
+  }, [searchTerm, selectedAccountType, viewMode, accounts])
 
   const loadAccounts = async () => {
     try {
@@ -110,25 +125,98 @@ export default function AccountReportsOverview() {
     }
   }
 
+  // Normalize text for search so Arabic ة (ta marbuta) and ه (ha) match, and trim/lowercase
+  const normalizeForSearch = (s: string): string => {
+    if (!s || typeof s !== "string") return ""
+    return s
+      .toLowerCase()
+      .trim()
+      .replace(/\u0629/g, "\u0647") // ة (ta marbuta) -> ه (ha) so "الثابتة" matches "الثابته"
+  }
+
+  const accountMatchesSearch = (account: AccountSummaryReport, searchNormalized: string): boolean => {
+    if (!searchNormalized) return true
+    const code = normalizeForSearch(account.account_code ?? "")
+    const name = normalizeForSearch(account.account_name ?? "")
+    return code.includes(searchNormalized) || name.includes(searchNormalized)
+  }
+
+  // Flatten hierarchical tree so we can search all accounts (main, sub, sub-sub)
+  const flattenAccounts = (list: AccountSummaryReport[]): AccountSummaryReport[] => {
+    const result: AccountSummaryReport[] = []
+    for (const a of list) {
+      result.push(a)
+      if (a.sub_accounts && a.sub_accounts.length > 0) {
+        result.push(...flattenAccounts(a.sub_accounts))
+      }
+    }
+    return result
+  }
+
+  // Prune tree to only branches that contain a matching account (so search shows sub-accounts)
+  const filterTreeToMatchingBranches = (
+    list: AccountSummaryReport[],
+    matchingIds: Set<string>
+  ): AccountSummaryReport[] => {
+    return list
+      .filter((account) => {
+        const selfMatch = matchingIds.has(account.account_id)
+        const filteredChildren =
+          account.sub_accounts && account.sub_accounts.length > 0
+            ? filterTreeToMatchingBranches(account.sub_accounts, matchingIds)
+            : []
+        const childMatch = (filteredChildren?.length ?? 0) > 0
+        return selfMatch || childMatch
+      })
+      .map((account) => ({
+        ...account,
+        sub_accounts:
+          account.sub_accounts && account.sub_accounts.length > 0
+            ? filterTreeToMatchingBranches(account.sub_accounts, matchingIds)
+            : undefined,
+      }))
+  }
+
   const filterAccounts = () => {
-    let filtered = accounts
+    const hasSearch = !!searchTerm.trim()
+    const hasTypeFilter = selectedAccountType !== "All Types"
 
-    // Filter by search term
-    if (searchTerm) {
-      const searchLower = searchTerm.toLowerCase()
-      filtered = filtered.filter(
-        account =>
-          account.account_code.toLowerCase().includes(searchLower) ||
-          account.account_name.toLowerCase().includes(searchLower)
-      )
+    if (!hasSearch && !hasTypeFilter) {
+      setFilteredAccounts(accounts)
+      return
     }
 
-    // Filter by account type
-    if (selectedAccountType !== "All Types") {
-      filtered = filtered.filter(account => account.account_type === selectedAccountType)
-    }
+    const searchNormalized = normalizeForSearch(searchTerm)
 
-    setFilteredAccounts(filtered)
+    if (viewMode === "hierarchical") {
+      // Flatten so we search main + all sub-accounts and sub-sub-accounts
+      const allFlat = flattenAccounts(accounts)
+      let filtered = allFlat
+      if (hasSearch) {
+        filtered = filtered.filter((account) => accountMatchesSearch(account, searchNormalized))
+      }
+      if (hasTypeFilter) {
+        filtered = filtered.filter((account) => account.account_type === selectedAccountType)
+      }
+      const matchingIds = new Set(filtered.map((a) => a.account_id))
+      const filteredTree = filterTreeToMatchingBranches(accounts, matchingIds)
+      // If tree prune left nothing (e.g. flat data in hierarchical view), show matching rows flat
+      if (filteredTree.length === 0 && filtered.length > 0) {
+        setFilteredAccounts(filtered)
+      } else {
+        setFilteredAccounts(filteredTree)
+      }
+    } else {
+      // Summary view: accounts is already a flat list (all accounts including sub-accounts)
+      let filtered = accounts
+      if (hasSearch) {
+        filtered = filtered.filter((account) => accountMatchesSearch(account, searchNormalized))
+      }
+      if (hasTypeFilter) {
+        filtered = filtered.filter((account) => account.account_type === selectedAccountType)
+      }
+      setFilteredAccounts(filtered)
+    }
   }
 
   const formatCurrency = (amount: number) => {

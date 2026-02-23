@@ -2,8 +2,9 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
+import { useTheme } from "next-themes"
 import { Button } from "@/components/ui/button"
-import { Calculator, FileText, TrendingUp, BookOpen, BarChart3, Home, Menu, ClipboardList, Users, Folder, ShoppingCart } from "lucide-react"
+import { Calculator, FileText, TrendingUp, BookOpen, BarChart3, Home, Menu, ClipboardList, Users, Folder, ShoppingCart, Moon, Sun } from "lucide-react"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
 import UserSelector from "@/components/user-selector"
 import { getCurrentUser, isAdmin, canViewAccountingData, isRegularUser } from "@/lib/auth-utils"
@@ -12,6 +13,7 @@ import { useLanguage } from "@/lib/language-context"
 export default function Navigation() {
   const pathname = usePathname()
   const { language, setLanguage, t } = useLanguage()
+  const { resolvedTheme, setTheme } = useTheme()
   
   const navigation = [
     { name: t("nav.dashboard"), key: "dashboard", href: "/", icon: Home, requiresAccountingView: true },
@@ -71,6 +73,20 @@ export default function Navigation() {
 
           {/* User Selector */}
           <div className="flex items-center gap-4">
+            {/* Dark mode toggle */}
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-9 w-9"
+              onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
+              title={resolvedTheme === "dark" ? (language === "ar" ? "الوضع الفاتح" : "Light mode") : (language === "ar" ? "الوضع الداكن" : "Dark mode")}
+            >
+              {resolvedTheme === "dark" ? (
+                <Sun className="h-4 w-4" />
+              ) : (
+                <Moon className="h-4 w-4" />
+              )}
+            </Button>
             {/* Language Switcher */}
             <div className="flex items-center gap-1 border rounded-md">
               <Button

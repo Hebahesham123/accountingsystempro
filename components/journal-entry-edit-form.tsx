@@ -68,7 +68,7 @@ export default function JournalEntryEditForm({ entry }: JournalEntryEditFormProp
         description: line.description || "",
         project_id: line.project_id || "",
         type: line.debit_amount > 0 ? "debit" : "credit",
-        amount: line.debit_amount > 0 ? line.debit_amount : line.credit_amount,
+        amount: roundAmount(line.debit_amount > 0 ? line.debit_amount : line.credit_amount),
         image_data: line.image_data,
       }))
       setLines(journalLines)
@@ -321,6 +321,9 @@ export default function JournalEntryEditForm({ entry }: JournalEntryEditFormProp
   }
 
   const handleLineChange = (lineId: string, field: keyof JournalLine, value: any) => {
+    if (field === "amount" && typeof value === "number" && !Number.isNaN(value)) {
+      value = roundAmount(value)
+    }
     setLines((prev) => prev.map((line) => (line.id === lineId ? { ...line, [field]: value } : line)))
   }
 
@@ -335,6 +338,16 @@ export default function JournalEntryEditForm({ entry }: JournalEntryEditFormProp
 
   const removeImage = (lineId: string) => {
     handleLineChange(lineId, "image_data", undefined)
+  }
+
+  const roundAmount = (n: number): number => Number(Number(n).toFixed(2))
+  const formatAmountWithCommas = (n: number): string =>
+    roundAmount(n).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  const parseAmountInput = (s: string): number => {
+    const cleaned = s.replace(/,/g, "").trim()
+    if (cleaned === "" || cleaned === ".") return 0
+    const num = Number.parseFloat(cleaned)
+    return Number.isNaN(num) ? 0 : num
   }
 
   const addLine = () => {
@@ -356,11 +369,13 @@ export default function JournalEntryEditForm({ entry }: JournalEntryEditFormProp
   }
 
   const getTotalDebits = () => {
-    return lines.filter((line) => line.type === "debit").reduce((sum, line) => sum + line.amount, 0)
+    const sum = lines.filter((line) => line.type === "debit").reduce((sum, line) => sum + line.amount, 0)
+    return roundAmount(sum)
   }
 
   const getTotalCredits = () => {
-    return lines.filter((line) => line.type === "credit").reduce((sum, line) => sum + line.amount, 0)
+    const sum = lines.filter((line) => line.type === "credit").reduce((sum, line) => sum + line.amount, 0)
+    return roundAmount(sum)
   }
 
   const isBalanced = () => {
@@ -400,7 +415,7 @@ export default function JournalEntryEditForm({ entry }: JournalEntryEditFormProp
       const totalCredits = Math.round(getTotalCredits() * 100) / 100
       toast({
         title: "Entry Not Balanced",
-        description: `Total debits ($${totalDebits.toFixed(2)}) must equal total credits ($${totalCredits.toFixed(2)})`,
+        description: `Total debits ($${formatAmountWithCommas(totalDebits)}) must equal total credits ($${formatAmountWithCommas(totalCredits)})`,
         variant: "destructive",
       })
       return
@@ -412,7 +427,7 @@ export default function JournalEntryEditForm({ entry }: JournalEntryEditFormProp
       // Convert lines to the format expected by the service
       // Round amounts to 2 decimal places to avoid floating point precision issues
       const entryLines = validLines.map((line) => {
-        const roundedAmount = Math.round(line.amount * 100) / 100
+        const roundedAmount = roundAmount(line.amount)
         return {
           id: line.id.startsWith('line-') ? undefined : line.id, // Don't include temp IDs
           account_id: line.account_id,
@@ -727,29 +742,29 @@ export default function JournalEntryEditForm({ entry }: JournalEntryEditFormProp
                         <div className="space-y-2">
                           <Label>Amount *</Label>
                           <Input
-                            type="number"
-                            step="0.01"
-                            min="0"
-                            value={line.amount ? Number(line.amount.toFixed(2)) : ""}
+                            type="text"
+                            inputMode="decimal"
+                            value={line.amount === 0 ? "" : formatAmountWithCommas(line.amount)}
                             onChange={(e) => {
                               const inputValue = e.target.value
                               if (inputValue === "" || inputValue === ".") {
                                 handleLineChange(line.id, "amount", 0)
                                 return
                               }
-                              const numValue = Number.parseFloat(inputValue)
-                              if (!Number.isNaN(numValue)) {
-                                // Round to 2 decimal places to avoid floating point precision issues
-                                const rounded = Math.round(numValue * 100) / 100
-                                handleLineChange(line.id, "amount", rounded)
+                              const numValue = parseAmountInput(inputValue)
+                              if (numValue >= 0) {
+                                handleLineChange(line.id, "amount", roundAmount(numValue))
                               }
                             }}
                             onBlur={(e) => {
-                              // Ensure value is rounded on blur
-                              const numValue = Number.parseFloat(e.target.value)
-                              if (!Number.isNaN(numValue) && numValue >= 0) {
-                                const rounded = Math.round(numValue * 100) / 100
-                                handleLineChange(line.id, "amount", rounded)
+                              const inputValue = e.target.value
+                              if (inputValue === "" || inputValue === ".") {
+                                handleLineChange(line.id, "amount", 0)
+                                return
+                              }
+                              const numValue = parseAmountInput(inputValue)
+                              if (numValue >= 0) {
+                                handleLineChange(line.id, "amount", roundAmount(numValue))
                               }
                             }}
                             placeholder="0.00"
@@ -895,16 +910,16 @@ export default function JournalEntryEditForm({ entry }: JournalEntryEditFormProp
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
                   <div>
                     <div className="font-medium text-green-700">Total Debits</div>
-                    <div className="text-2xl font-bold">${getTotalDebits().toFixed(2)}</div>
+                    <div className="text-2xl font-bold">${formatAmountWithCommas(getTotalDebits())}</div>
                   </div>
                   <div>
                     <div className="font-medium text-red-700">Total Credits</div>
-                    <div className="text-2xl font-bold">${getTotalCredits().toFixed(2)}</div>
+                    <div className="text-2xl font-bold">${formatAmountWithCommas(getTotalCredits())}</div>
                   </div>
                   <div>
                     <div className="font-medium">Difference</div>
                     <div className="text-2xl font-bold">
-                      ${Math.abs(getTotalDebits() - getTotalCredits()).toFixed(2)}
+                      ${formatAmountWithCommas(Math.abs(getTotalDebits() - getTotalCredits()))}
                     </div>
                     <Badge variant={isBalanced() ? "default" : "destructive"} className="mt-1">
                       {isBalanced() ? "Balanced" : "Not Balanced"}

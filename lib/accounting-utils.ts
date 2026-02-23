@@ -2027,12 +2027,56 @@ export class AccountingService {
     }
   }
 
-  // Get trial balance with real data and hierarchical structure
+  // Get trial balance with real data and hierarchical structure (optimized: 2 queries instead of N+1)
   static async getTrialBalance(startDate?: string, endDate?: string): Promise<TrialBalanceItem[]> {
     try {
-      // Get all accounts
+      // 1) Get all accounts (single query)
       const accounts = await this.getChartOfAccounts()
-      
+
+      // 2) Fetch all journal entry lines with entry date in one query
+      const { data: allLines, error: linesError } = await supabase
+        .from("journal_entry_lines")
+        .select(`
+          account_id,
+          debit_amount,
+          credit_amount,
+          journal_entries(entry_date)
+        `)
+
+      if (linesError) {
+        console.warn("Error fetching journal lines for trial balance:", linesError)
+      }
+
+      // Filter by date in memory and aggregate by account_id
+      const balanceMap = new Map<string, { debit: number; credit: number; closing: number }>()
+      const accountIds = new Set(accounts.map((a) => a.id))
+      for (const id of accountIds) {
+        balanceMap.set(id, { debit: 0, credit: 0, closing: 0 })
+      }
+
+      const lines = allLines || []
+      for (const row of lines) {
+        const entryDate = (row.journal_entries as { entry_date?: string } | null)?.entry_date
+        if (startDate && endDate && entryDate != null) {
+          if (entryDate < startDate || entryDate > endDate) continue
+        }
+        const accountId = row.account_id as string
+        if (!accountIds.has(accountId)) continue
+        const debit = Number(row.debit_amount) || 0
+        const credit = Number(row.credit_amount) || 0
+        const cur = balanceMap.get(accountId)!
+        cur.debit += debit
+        cur.credit += credit
+      }
+
+      // Resolve account type and compute closing balance per account
+      const accountById = new Map(accounts.map((a) => [a.id, a]))
+      for (const account of accounts) {
+        const cur = balanceMap.get(account.id)!
+        const isDebitNormal = account.account_types?.normal_balance === "debit"
+        cur.closing = isDebitNormal ? cur.debit - cur.credit : cur.credit - cur.debit
+      }
+
       // Build parent-child map
       const childrenMap = new Map<string, string[]>()
       for (const account of accounts) {
@@ -2042,105 +2086,45 @@ export class AccountingService {
           childrenMap.set(account.parent_account_id, children)
         }
       }
-      
-      // Get trial balance data for each account
-      const balanceMap = new Map<string, { debit: number; credit: number; closing: number }>()
-      
-      for (const account of accounts) {
-        const openingBalance = 0
-        
-        const { data: transactions, error } = await supabase
-          .from("journal_entry_lines")
-          .select(`
-            debit_amount, 
-            credit_amount,
-            journal_entry_id
-          `)
-          .eq("account_id", account.id)
-        
-        if (error) {
-          console.warn(`Error fetching transactions for account ${account.code}:`, error)
-          balanceMap.set(account.id, { debit: 0, credit: 0, closing: 0 })
-          continue
-        }
-        
-        let filteredTransactions = transactions || []
-        if (startDate && endDate && transactions) {
-          const journalEntryIds = [...new Set(transactions.map(t => t.journal_entry_id))]
-          if (journalEntryIds.length > 0) {
-            const { data: journalEntries } = await supabase
-              .from("journal_entries")
-              .select("id, entry_date")
-              .in("id", journalEntryIds)
-              .gte("entry_date", startDate)
-              .lte("entry_date", endDate)
-            
-            const validEntryIds = new Set(journalEntries?.map(je => je.id) || [])
-            filteredTransactions = transactions.filter(t => validEntryIds.has(t.journal_entry_id))
-          }
-        }
-        
-        const debitTotal = filteredTransactions.reduce((sum, t) => sum + (t.debit_amount || 0), 0)
-        const creditTotal = filteredTransactions.reduce((sum, t) => sum + (t.credit_amount || 0), 0)
-        
-        const isDebitNormal = account.account_types?.normal_balance === "debit"
-        let closingBalance = openingBalance
-        if (isDebitNormal) {
-          closingBalance += debitTotal - creditTotal
-        } else {
-          closingBalance += creditTotal - debitTotal
-        }
-        
-        balanceMap.set(account.id, { debit: debitTotal, credit: creditTotal, closing: closingBalance })
-      }
-      
+
       // Calculate total balance including children (recursive)
       const totalBalanceMap = new Map<string, number>()
-      
       const calculateTotalBalance = (accountId: string): number => {
-        if (totalBalanceMap.has(accountId)) {
-          return totalBalanceMap.get(accountId)!
-        }
-        
-        const ownBalance = balanceMap.get(accountId)?.closing || 0
+        if (totalBalanceMap.has(accountId)) return totalBalanceMap.get(accountId)!
+        const ownBalance = balanceMap.get(accountId)?.closing ?? 0
         const children = childrenMap.get(accountId) || []
-        
         let childrenTotal = 0
         for (const childId of children) {
           childrenTotal += calculateTotalBalance(childId)
         }
-        
-        const totalBalance = ownBalance + childrenTotal
-        totalBalanceMap.set(accountId, totalBalance)
-        return totalBalance
+        const total = ownBalance + childrenTotal
+        totalBalanceMap.set(accountId, total)
+        return total
       }
-      
-      // Calculate total balance for all accounts
       for (const account of accounts) {
         calculateTotalBalance(account.id)
       }
-      
+
       // Build trial balance items with hierarchy info
-      const trialBalanceItems: TrialBalanceItem[] = accounts.map(account => {
+      const trialBalanceItems: TrialBalanceItem[] = accounts.map((account) => {
         const balance = balanceMap.get(account.id) || { debit: 0, credit: 0, closing: 0 }
         const hasChildren = childrenMap.has(account.id)
-        
         return {
           account_id: account.id,
           account_code: account.code,
           account_name: account.name,
           account_type: account.account_types?.name || "Unknown",
           parent_account_id: account.parent_account_id,
-          level: account.level || 1,
+          level: (account as { level?: number }).level ?? 1,
           opening_balance: 0,
           debit_total: balance.debit,
           credit_total: balance.credit,
           closing_balance: balance.closing,
-          total_balance: totalBalanceMap.get(account.id) || balance.closing,
+          total_balance: totalBalanceMap.get(account.id) ?? balance.closing,
           has_children: hasChildren,
         }
       })
-      
+
       return trialBalanceItems.sort((a, b) => a.account_code.localeCompare(b.account_code))
     } catch (error) {
       console.error("Error generating trial balance:", error)

@@ -1,5 +1,8 @@
 // Export and Print Utilities for Accounting System
 
+// UTF-8 BOM so Excel (and other tools) open CSV with Arabic/Unicode correctly
+const UTF8_BOM = "\uFEFF"
+
 export const exportToCSV = (data: any[], filename: string, headers: string[]) => {
   const csvContent = [
     headers.join(","),
@@ -15,7 +18,7 @@ export const exportToCSV = (data: any[], filename: string, headers: string[]) =>
     ),
   ].join("\n")
 
-  const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" })
+  const blob = new Blob([UTF8_BOM + csvContent], { type: "text/csv;charset=utf-8;" })
   const url = window.URL.createObjectURL(blob)
   const a = document.createElement("a")
   a.href = url
@@ -27,7 +30,7 @@ export const exportToCSV = (data: any[], filename: string, headers: string[]) =>
 }
 
 export const exportToCSVCustom = (rows: string[][], filename: string) => {
-  const csvContent = rows.map(row => 
+  const csvContent = rows.map(row =>
     row.map(cell => {
       if (typeof cell === "string" && (cell.includes(",") || cell.includes('"') || cell.includes("\n"))) {
         return `"${cell.replace(/"/g, '""')}"`
@@ -36,7 +39,7 @@ export const exportToCSVCustom = (rows: string[][], filename: string) => {
     }).join(",")
   ).join("\n")
 
-  const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" })
+  const blob = new Blob([UTF8_BOM + csvContent], { type: "text/csv;charset=utf-8;" })
   const url = window.URL.createObjectURL(blob)
   const a = document.createElement("a")
   a.href = url
@@ -146,6 +149,7 @@ export const formatDate = (dateString: string): string => {
     day: "numeric",
   })
 }
+
 
 
 

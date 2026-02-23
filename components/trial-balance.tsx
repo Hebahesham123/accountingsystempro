@@ -26,24 +26,20 @@ export default function TrialBalance() {
   const [viewMode, setViewMode] = useState<"flat" | "hierarchical">("hierarchical")
   const { toast } = useToast()
 
+  // Set default dates once on mount (current year)
   useEffect(() => {
-    // Set default dates (current year)
     const now = new Date()
     const yearStart = new Date(now.getFullYear(), 0, 1)
     const yearEnd = new Date(now.getFullYear(), 11, 31)
-
     setStartDate(yearStart.toISOString().split("T")[0])
     setEndDate(yearEnd.toISOString().split("T")[0])
-
-    loadTrialBalance()
   }, [])
 
   useEffect(() => {
-    // Apply filters whenever trial balance or filters change
     applyFilters()
   }, [trialBalance, accountTypeFilter, searchTerm])
 
-  // Load trial balance when dates change
+  // Load trial balance when dates are set or change (single load with default dates)
   useEffect(() => {
     if (startDate && endDate) {
       loadTrialBalance()
@@ -189,7 +185,7 @@ export default function TrialBalance() {
       ),
     ].join("\n")
 
-    const blob = new Blob([csvContent], { type: "text/csv" })
+    const blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8;" })
     const url = window.URL.createObjectURL(blob)
     const a = document.createElement("a")
     a.href = url
