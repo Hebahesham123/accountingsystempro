@@ -53,6 +53,8 @@ export default function JournalEntryEditForm({ entry }: JournalEntryEditFormProp
   })
 
   const [lines, setLines] = useState<JournalLine[]>([])
+  const [focusedAmountLineId, setFocusedAmountLineId] = useState<string | null>(null)
+  const [draftAmountValue, setDraftAmountValue] = useState("")
 
   useEffect(() => {
     loadAccounts()
@@ -744,28 +746,28 @@ export default function JournalEntryEditForm({ entry }: JournalEntryEditFormProp
                           <Input
                             type="text"
                             inputMode="decimal"
-                            value={line.amount === 0 ? "" : formatAmountWithCommas(line.amount)}
-                            onChange={(e) => {
-                              const inputValue = e.target.value
-                              if (inputValue === "" || inputValue === ".") {
-                                handleLineChange(line.id, "amount", 0)
-                                return
-                              }
-                              const numValue = parseAmountInput(inputValue)
-                              if (numValue >= 0) {
-                                handleLineChange(line.id, "amount", roundAmount(numValue))
-                              }
+                            value={focusedAmountLineId === line.id ? draftAmountValue : (line.amount === 0 ? "" : formatAmountWithCommas(line.amount))}
+                            onFocus={() => {
+                              setFocusedAmountLineId(line.id)
+                              setDraftAmountValue(line.amount === 0 ? "" : formatAmountWithCommas(line.amount))
                             }}
-                            onBlur={(e) => {
-                              const inputValue = e.target.value
+                            onChange={(e) => {
+                              if (focusedAmountLineId !== line.id) return
+                              setDraftAmountValue(e.target.value)
+                            }}
+                            onBlur={() => {
+                              if (focusedAmountLineId !== line.id) return
+                              const inputValue = draftAmountValue.trim()
                               if (inputValue === "" || inputValue === ".") {
                                 handleLineChange(line.id, "amount", 0)
-                                return
+                              } else {
+                                const numValue = parseAmountInput(inputValue)
+                                if (numValue >= 0) {
+                                  handleLineChange(line.id, "amount", roundAmount(numValue))
+                                }
                               }
-                              const numValue = parseAmountInput(inputValue)
-                              if (numValue >= 0) {
-                                handleLineChange(line.id, "amount", roundAmount(numValue))
-                              }
+                              setFocusedAmountLineId(null)
+                              setDraftAmountValue("")
                             }}
                             placeholder="0.00"
                           />
