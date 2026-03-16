@@ -23,6 +23,8 @@ interface GeneralLedgerEntry {
   debit_amount: number
   credit_amount: number
   running_balance: number
+  project_id?: string
+  project_name?: string | null
   journal_entries: {
     entry_date: string
     entry_number: string
@@ -48,10 +50,15 @@ export default function GeneralLedger() {
   const [accountSearchValue, setAccountSearchValue] = useState("")
   const [accountPopoverOpen, setAccountPopoverOpen] = useState(false)
   const [expandedTypes, setExpandedTypes] = useState<Set<string>>(new Set(["Asset", "Liability", "Equity", "Revenue", "Expense"]))
+  const [projects, setProjects] = useState<{ id: string; name: string }[]>([])
+  const [selectedProjectId, setSelectedProjectId] = useState<string>("all")
+  const [projectPopoverOpen, setProjectPopoverOpen] = useState(false)
+  const [projectSearchValue, setProjectSearchValue] = useState("")
   const { toast } = useToast()
 
   useEffect(() => {
     loadAccounts()
+    loadProjects()
     // Set default dates (current year)
     const now = new Date()
     const yearStart = new Date(now.getFullYear(), 0, 1)
@@ -74,6 +81,15 @@ export default function GeneralLedger() {
         description: "Failed to load accounts",
         variant: "destructive",
       })
+    }
+  }
+
+  const loadProjects = async () => {
+    try {
+      const data = await AccountingService.getProjects()
+      setProjects(data || [])
+    } catch {
+      // Projects feature may not be available; ignore silently
     }
   }
 
@@ -111,7 +127,7 @@ export default function GeneralLedger() {
 
     try {
       setLoading(true)
-      const data = await AccountingService.getGeneralLedger(selectedAccountId, startDate, endDate)
+      const data = await AccountingService.getGeneralLedger(selectedAccountId, startDate, endDate, selectedProjectId !== "all" ? selectedProjectId : undefined)
 
       // Calculate running balance
       let runningBalance = 0
@@ -161,6 +177,13 @@ export default function GeneralLedger() {
     return code.includes(q) || name.includes(q) || typeName.includes(q)
   })
 
+  const filteredProjects = projects.filter((p) => {
+    if (!projectSearchValue.trim()) return true
+    return p.name.toLowerCase().includes(projectSearchValue.toLowerCase().trim())
+  })
+
+  const getSelectedProject = () => projects.find((p) => p.id === selectedProjectId)
+
   const searchLower = searchTerm.toLowerCase().trim()
   const filteredEntries = !searchLower
     ? ledgerEntries
@@ -171,13 +194,15 @@ export default function GeneralLedger() {
         const ref = (entry.reference || entry.journal_entries?.reference || "").toLowerCase()
         const accCode = (entry.account_code || entry.accounts?.code || "").toLowerCase()
         const accName = (entry.account_name || entry.accounts?.name || "").toLowerCase()
+        const projName = (entry.project_name || "").toLowerCase()
         return (
           desc.includes(searchLower) ||
           jeDesc.includes(searchLower) ||
           jeNum.includes(searchLower) ||
           ref.includes(searchLower) ||
           accCode.includes(searchLower) ||
-          accName.includes(searchLower)
+          accName.includes(searchLower) ||
+          projName.includes(searchLower)
         )
       })
 
@@ -201,7 +226,7 @@ export default function GeneralLedger() {
     if (!selectedAccountId || filteredEntries.length === 0) return
 
     const selectedAccount = getSelectedAccount()
-    const headers = ["Date", "Entry Number", "Description", "Reference", "Debit", "Credit", "Balance"]
+    const headers = ["Date", "Entry Number", "Description", "Reference", "Project", "Debit", "Credit", "Balance"]
     const csvContent = [
       headers.join(","),
       ...filteredEntries.map((entry) =>
@@ -210,6 +235,7 @@ export default function GeneralLedger() {
           entry.journal_entries.entry_number,
           `"${entry.description || entry.journal_entries.description}"`,
           `"${entry.reference || entry.journal_entries.reference || ""}"`,
+          `"${entry.project_name || ""}"`,
           entry.debit_amount.toFixed(2),
           entry.credit_amount.toFixed(2),
           entry.running_balance.toFixed(2),
@@ -256,7 +282,7 @@ export default function GeneralLedger() {
           <CardDescription>{t("gl.selectAccountToView")}</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
             <div className="space-y-2 lg:col-span-2">
               <Label>{language === "ar" ? "اختيار الحساب (ابحث بالكود أو الاسم)" : "Choose account (search by code or name)"}</Label>
               <Popover open={accountPopoverOpen} onOpenChange={setAccountPopoverOpen}>
@@ -341,6 +367,58 @@ export default function GeneralLedger() {
               <Input id="end_date" type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
             </div>
 
+            {projects.length > 0 && (
+              <div className="space-y-2">
+                <Label>{language === "ar" ? "المشروع" : "Project"}</Label>
+                <Popover open={projectPopoverOpen} onOpenChange={setProjectPopoverOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      role="combobox"
+                      aria-expanded={projectPopoverOpen}
+                      className="w-full justify-between font-normal h-10"
+                    >
+                      <span className="truncate">
+                        {selectedProjectId === "all"
+                          ? (language === "ar" ? "كل المشاريع" : "All Projects")
+                          : (getSelectedProject()?.name || (language === "ar" ? "اختر مشروعاً" : "Select project"))}
+                      </span>
+                      <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[var(--radix-popover-trigger-width)] max-w-[300px] p-0" align="start">
+                    <Command shouldFilter={false}>
+                      <CommandInput
+                        placeholder={language === "ar" ? "ابحث عن مشروع..." : "Search project..."}
+                        value={projectSearchValue}
+                        onValueChange={setProjectSearchValue}
+                      />
+                      <CommandList>
+                        <CommandEmpty>{language === "ar" ? "لا توجد مشاريع" : "No projects found"}</CommandEmpty>
+                        <CommandGroup>
+                          <CommandItem
+                            value="all"
+                            onSelect={() => { setSelectedProjectId("all"); setProjectPopoverOpen(false); setProjectSearchValue("") }}
+                          >
+                            {language === "ar" ? "كل المشاريع" : "All Projects"}
+                          </CommandItem>
+                          {filteredProjects.map((project) => (
+                            <CommandItem
+                              key={project.id}
+                              value={project.id}
+                              onSelect={() => { setSelectedProjectId(project.id); setProjectPopoverOpen(false); setProjectSearchValue("") }}
+                            >
+                              {project.name}
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
+              </div>
+            )}
+
             <div className="space-y-2">
               <Label>&nbsp;</Label>
               <Button onClick={loadGeneralLedger} disabled={loading || !selectedAccountId} className="w-full">
@@ -416,6 +494,7 @@ export default function GeneralLedger() {
                     {selectedAccountHasChildren() && <TableHead>{t("gl.selectAccount")}</TableHead>}
                     <TableHead>{t("common.description")}</TableHead>
                     <TableHead>{t("gl.reference")}</TableHead>
+                    <TableHead>{language === "ar" ? "المشروع" : "Project"}</TableHead>
                     <TableHead className="text-right">{t("gl.debit")}</TableHead>
                     <TableHead className="text-right">{t("gl.credit")}</TableHead>
                     <TableHead className="text-right">{t("gl.runningBalance")}</TableHead>
@@ -451,6 +530,13 @@ export default function GeneralLedger() {
                       <TableCell className="text-sm text-muted-foreground">
                         {entry.reference || entry.journal_entries.reference || "-"}
                       </TableCell>
+                      <TableCell className="text-sm">
+                        {entry.project_name ? (
+                          <Badge variant="secondary" className="text-xs font-normal">{entry.project_name}</Badge>
+                        ) : (
+                          <span className="text-muted-foreground">-</span>
+                        )}
+                      </TableCell>
                       <TableCell className="text-right">
                         {entry.debit_amount > 0 ? formatCurrency(entry.debit_amount) : "-"}
                       </TableCell>
@@ -465,7 +551,7 @@ export default function GeneralLedger() {
 
                   {/* Totals Row */}
                   <TableRow className="bg-gray-50 font-semibold">
-                    <TableCell colSpan={selectedAccountHasChildren() ? 5 : 4} className="text-right">
+                    <TableCell colSpan={selectedAccountHasChildren() ? 6 : 5} className="text-right">
                       <strong>{t("general.totals")}</strong>
                     </TableCell>
                     <TableCell className="text-right">

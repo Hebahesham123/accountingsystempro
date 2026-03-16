@@ -2133,7 +2133,7 @@ export class AccountingService {
   }
 
   // Get general ledger for an account (including all child accounts if it's a parent)
-  static async getGeneralLedger(accountId: string, startDate?: string, endDate?: string): Promise<any[]> {
+  static async getGeneralLedger(accountId: string, startDate?: string, endDate?: string, projectId?: string): Promise<any[]> {
     try {
       if (!accountId) {
         console.error("No account ID provided")
@@ -2175,6 +2175,11 @@ export class AccountingService {
         `)
         .in("account_id", accountIdsToQuery)
 
+      // Apply project filter if provided
+      if (projectId && projectId !== "all") {
+        query = query.eq("project_id", projectId)
+      }
+
       // Apply date filter if provided
       if (startDate && endDate) {
         // First get journal entry IDs in date range
@@ -2209,6 +2214,23 @@ export class AccountingService {
       if (!data || data.length === 0) {
         return []
       }
+
+      // Fetch projects to enrich entries with project names
+      let projectsMap = new Map<string, any>()
+      try {
+        const projectIdsInData = [...new Set(data.map((e: any) => e.project_id).filter(Boolean))]
+        if (projectIdsInData.length > 0) {
+          const { data: projects } = await supabase
+            .from("projects")
+            .select("id, name")
+            .in("id", projectIdsInData)
+          if (projects) {
+            projectsMap = new Map(projects.map((p: any) => [p.id, p]))
+          }
+        }
+      } catch {
+        // Projects table may not exist; skip silently
+      }
       
       // Sort by entry date and then by created_at
       const sortedData = data.sort((a: any, b: any) => {
@@ -2220,14 +2242,16 @@ export class AccountingService {
         return new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime()
       })
       
-      // Add account information to each entry
+      // Add account and project information to each entry
       const enrichedData = sortedData.map((entry: any) => {
         const account = accountMap.get(entry.account_id)
+        const project = entry.project_id ? projectsMap.get(entry.project_id) : null
         return {
           ...entry,
           account_code: account?.code || '',
           account_name: account?.name || '',
-          is_child_account: entry.account_id !== accountId
+          is_child_account: entry.account_id !== accountId,
+          project_name: project?.name || null,
         }
       })
       
