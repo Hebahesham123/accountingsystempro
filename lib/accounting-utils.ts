@@ -1472,7 +1472,9 @@ export class AccountingService {
     }
   }
 
-  // Create missing journal entry lines for entries that have totals but no lines
+  // Repair helper: create placeholder lines for entries that have totals but no lines.
+  // Not safe to call automatically: PostgREST caps result rows by default, so existence checks
+  // can miss real lines and corrupt data. Prefer SQL repair scripts; call this only from admin tooling with care.
   static async createMissingJournalEntryLines(): Promise<void> {
     try {
       // Find entries without lines but with totals
@@ -1662,15 +1664,12 @@ export class AccountingService {
     searchTerm?: string
   }): Promise<any[]> {
     try {
-      // First, create missing journal entry lines (but don't fail if this errors)
-      try {
-        await this.createMissingJournalEntryLines()
-      } catch (createLinesError) {
-        console.warn("Warning: Could not create missing journal entry lines:", createLinesError)
-        // Continue anyway - this is not critical
-      }
+      // Do not run createMissingJournalEntryLines() here: it mutates the database on every
+      // list load and, with PostgREST's default row limit, the "has lines" check can miss
+      // real lines and insert bogus rows (duplicate line_number, wrong accounts). Use
+      // scripts/37-fix-missing-journal-lines.sql or an admin repair if needed.
 
-      // Then get the journal entries with basic info and user info
+      // Get the journal entries with basic info and user info
       let query = supabase
         .from("journal_entries")
         .select(`
@@ -1713,15 +1712,36 @@ export class AccountingService {
         return []
       }
 
-      // Get the journal entry lines for these entries
-        const entryIds = entries.map(entry => entry.id)
-        
-        // Get lines first
-        const { data: lines, error: linesError } = await supabase
+      // Get the journal entry lines for these entries.
+      // IMPORTANT: Do not use a single global .order("line_number").limit(N) across all entries:
+      // that returns every entry's line 1 first, then every line 2, etc., so the row cap drops
+      // later lines (credits) while the journal header still shows full totals — UI shows 1 line
+      // but "balanced" $2/$2. Fetch in entry-ID chunks so each query returns full lines per entry.
+      const entryIds = entries.map((entry) => entry.id)
+      const ENTRY_ID_CHUNK = 40
+      const lines: any[] = []
+      let linesError: any = null
+
+      for (let i = 0; i < entryIds.length; i += ENTRY_ID_CHUNK) {
+        const chunk = entryIds.slice(i, i + ENTRY_ID_CHUNK)
+        const { data: chunkLines, error: chunkError } = await supabase
           .from("journal_entry_lines")
           .select("*")
-          .in("journal_entry_id", entryIds)
+          .in("journal_entry_id", chunk)
+          .order("journal_entry_id", { ascending: true })
           .order("line_number", { ascending: true })
+          .order("id", { ascending: true })
+
+        if (chunkError) {
+          linesError = chunkError
+          lines.length = 0
+          console.error("Error fetching journal entry lines (chunk):", chunkError)
+          break
+        }
+        if (chunkLines?.length) {
+          lines.push(...chunkLines)
+        }
+      }
 
       if (linesError) {
         console.error("Error fetching journal entry lines:", linesError)

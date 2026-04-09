@@ -281,8 +281,17 @@ export default function JournalEntryReview({ entry, onClose }: JournalEntryRevie
 
   const hasLines = entry.journal_entry_lines && entry.journal_entry_lines.length > 0;
   const lineCount = entry.journal_entry_lines?.length || 0;
-  const totalDebit = entry.total_debit || 0;
-  const totalCredit = entry.total_credit || 0;
+  const linesSumDebit =
+    entry.journal_entry_lines?.reduce((sum, line) => sum + (Number(line.debit_amount) || 0), 0) || 0;
+  const linesSumCredit =
+    entry.journal_entry_lines?.reduce((sum, line) => sum + (Number(line.credit_amount) || 0), 0) || 0;
+  const headerDebit = Number(entry.total_debit) || 0;
+  const headerCredit = Number(entry.total_credit) || 0;
+  const headerMismatch =
+    Math.abs(headerDebit - linesSumDebit) > 0.01 || Math.abs(headerCredit - linesSumCredit) > 0.01;
+  // Totals in the modal match the lines table (avoids showing "balanced" when only some lines loaded)
+  const totalDebit = linesSumDebit;
+  const totalCredit = linesSumCredit;
   const isBalanced = Math.abs(totalDebit - totalCredit) < 0.01;
 
   if (loading) {
@@ -394,7 +403,7 @@ export default function JournalEntryReview({ entry, onClose }: JournalEntryRevie
                               return (
                                 <TableRow key={line.id}>
                                   <TableCell className="font-medium">
-                                    {line.line_number || index + 1}
+                                    {index + 1}
                                   </TableCell>
                                   <TableCell>
                                     <div className="space-y-1">
@@ -499,6 +508,16 @@ export default function JournalEntryReview({ entry, onClose }: JournalEntryRevie
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
+                    {headerMismatch && (
+                      <div className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-md p-3 mb-4 flex gap-2">
+                        <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+                        <span>
+                          Stored entry totals (Debit {formatCurrency(headerDebit)}, Credit{' '}
+                          {formatCurrency(headerCredit)}) differ from the lines listed below. Refresh the list,
+                          or check the database if this persists.
+                        </span>
+                      </div>
+                    )}
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label className="text-sm font-medium text-gray-600">Total Debits</Label>

@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Calculator, Save, RotateCcw, Plus, Trash2, Search, ChevronRight, ChevronDown, Upload, Image, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -61,6 +61,7 @@ export default function JournalEntryForm() {
   ])
   const [focusedAmountLineId, setFocusedAmountLineId] = useState<string | null>(null)
   const [draftAmountValue, setDraftAmountValue] = useState("")
+  const submitLockRef = useRef(false)
 
   // Check permissions on mount
   useEffect(() => {
@@ -470,6 +471,7 @@ export default function JournalEntryForm() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (submitLockRef.current || loading) return
 
     // Validation
     if (!formData.description.trim()) {
@@ -505,6 +507,7 @@ export default function JournalEntryForm() {
     }
 
     try {
+      submitLockRef.current = true
       setLoading(true)
 
       // Convert lines to the format expected by the service
@@ -593,6 +596,7 @@ export default function JournalEntryForm() {
         variant: "destructive",
       })
     } finally {
+      submitLockRef.current = false
       setLoading(false)
     }
   }
@@ -782,19 +786,9 @@ export default function JournalEntryForm() {
                                 className="w-full justify-between text-left"
                               >
                                 {line.account_id ? (
-                                  <div className="flex flex-col items-start">
-                                    <span className="font-medium">
-                                      {accountInfo.code} - {accountInfo.name}
-                                    </span>
-                                    {accountInfo.isSubAccount && (
-                                      <div className="text-xs text-muted-foreground space-y-1">
-                                        <div>Sub-account of: {accountInfo.parentName}</div>
-                                        <div className="text-blue-600 font-mono">
-                                          {accountInfo.hierarchyPath}
-                                        </div>
-                                      </div>
-                                    )}
-                                  </div>
+                                  <span className="font-medium truncate">
+                                    {accountInfo.code} - {accountInfo.name}
+                                  </span>
                                 ) : (
                                   t("je.selectAccount") + "..."
                                 )}

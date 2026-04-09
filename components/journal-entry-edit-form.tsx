@@ -649,19 +649,9 @@ export default function JournalEntryEditForm({ entry }: JournalEntryEditFormProp
                                 className="w-full justify-between text-left"
                               >
                                 {line.account_id ? (
-                                  <div className="flex flex-col items-start">
-                                    <span className="font-medium">
-                                      {accountInfo.code} - {accountInfo.name}
-                                    </span>
-                                    {accountInfo.isSubAccount && (
-                                      <div className="text-xs text-muted-foreground space-y-1">
-                                        <div>Sub-account of: {accountInfo.parentName}</div>
-                                        <div className="text-blue-600 font-mono">
-                                          {accountInfo.hierarchyPath}
-                                        </div>
-                                      </div>
-                                    )}
-                                  </div>
+                                  <span className="font-medium truncate">
+                                    {accountInfo.code} - {accountInfo.name}
+                                  </span>
                                 ) : (
                                   "Select account..."
                                 )}
