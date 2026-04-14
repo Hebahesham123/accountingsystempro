@@ -335,6 +335,7 @@ export default function TrialBalance() {
               <TableRow>
                 <TableHead className="w-[200px]">Account</TableHead>
                 <TableHead>Type</TableHead>
+                <TableHead className="text-right">{language === "ar" ? "رصيد افتتاحي" : "Opening Balance"}</TableHead>
                 <TableHead className="text-right">Debits</TableHead>
                 <TableHead className="text-right">Credits</TableHead>
                 <TableHead className="text-right">Balance</TableHead>
@@ -379,6 +380,11 @@ export default function TrialBalance() {
                       <Badge className={getAccountTypeColor(item.account_type)}>{item.account_type}</Badge>
                     </TableCell>
                     <TableCell className="text-right">
+                      {(item.opening_balance || 0) !== 0
+                        ? <span className="text-purple-600">{formatCurrency(item.opening_balance)}</span>
+                        : <span className="text-gray-300">-</span>}
+                    </TableCell>
+                    <TableCell className="text-right">
                       {(item.debit_total || 0) > 0 ? formatCurrency(item.debit_total) : <span className="text-gray-300">-</span>}
                     </TableCell>
                     <TableCell className="text-right">
@@ -404,7 +410,7 @@ export default function TrialBalance() {
 
               {filteredBalance.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                     {loading ? t("tb.loading") : (language === "ar" ? "لا توجد حسابات تطابق المرشحات" : "No accounts match your filters")}
                   </TableCell>
                 </TableRow>
@@ -413,7 +419,7 @@ export default function TrialBalance() {
               {/* Totals Row */}
               {filteredBalance.length > 0 && (
                 <TableRow className="bg-blue-50 font-semibold border-t-2">
-                  <TableCell colSpan={2} className="text-right">
+                  <TableCell colSpan={3} className="text-right">
                     <strong>{language === "ar" ? "الإجماليات الكبرى:" : "GRAND TOTALS:"}</strong>
                   </TableCell>
                   <TableCell className="text-right">
@@ -424,7 +430,7 @@ export default function TrialBalance() {
                   </TableCell>
                   <TableCell className="text-right">
                     <Badge variant={Math.abs(getTotalDebits() - getTotalCredits()) < 0.01 ? "default" : "destructive"}>
-                      {Math.abs(getTotalDebits() - getTotalCredits()) < 0.01 
+                      {Math.abs(getTotalDebits() - getTotalCredits()) < 0.01
                         ? (language === "ar" ? "متوازن ✓" : "Balanced ✓")
                         : (language === "ar" ? "غير متوازن ✗" : "Not Balanced ✗")}
                     </Badge>

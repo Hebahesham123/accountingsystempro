@@ -43,6 +43,8 @@ export default function JournalEntriesList() {
     entriesWithoutLines: 0
   })
   const { toast } = useToast()
+  const PAGE_SIZE = 50
+  const [currentPage, setCurrentPage] = useState(1)
 
   const [filters, setFilters] = useState({
     startDate: "",
@@ -185,12 +187,6 @@ export default function JournalEntriesList() {
     }
   }, [filters.startDate, filters.endDate, loadEntries])
 
-  const handleFilterChange = (field: string, value: string) =>
-    setFilters((prev) => ({
-      ...prev,
-      [field]: value,
-    }))
-
   const applyFilters = () => {
     loadEntries()
   }
@@ -204,6 +200,12 @@ export default function JournalEntriesList() {
       })
     }
   }, [filters.accountType, filters.searchTerm, filters.status, loadEntries])
+
+  // Reset to page 1 when filters change
+  const handleFilterChange = (field: string, value: string) => {
+    setCurrentPage(1)
+    setFilters((prev) => ({ ...prev, [field]: value }))
+  }
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString()
@@ -637,7 +639,7 @@ export default function JournalEntriesList() {
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filteredEntries.map((entry) => (
+                  filteredEntries.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE).map((entry) => (
                     <TableRow key={entry.id} className="hover:bg-gray-50">
                       <TableCell className="font-mono font-medium">
                         {entry.entry_number}
@@ -791,6 +793,47 @@ export default function JournalEntriesList() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Pagination Controls */}
+      {filteredEntries.length > PAGE_SIZE && (
+        <div className="flex items-center justify-between mt-2 px-1">
+          <span className="text-sm text-muted-foreground">
+            {language === "ar"
+              ? `عرض ${(currentPage - 1) * PAGE_SIZE + 1}–${Math.min(currentPage * PAGE_SIZE, filteredEntries.length)} من ${filteredEntries.length}`
+              : `Showing ${(currentPage - 1) * PAGE_SIZE + 1}–${Math.min(currentPage * PAGE_SIZE, filteredEntries.length)} of ${filteredEntries.length} entries`}
+          </span>
+          <div className="flex gap-2">
+            <button
+              className="px-3 py-1 rounded border text-sm disabled:opacity-40"
+              disabled={currentPage === 1}
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+            >
+              ← {language === "ar" ? "السابق" : "Prev"}
+            </button>
+            {Array.from({ length: Math.ceil(filteredEntries.length / PAGE_SIZE) }, (_, i) => i + 1)
+              .filter(p => p === 1 || p === Math.ceil(filteredEntries.length / PAGE_SIZE) || Math.abs(p - currentPage) <= 2)
+              .map((p, idx, arr) => (
+                <>
+                  {idx > 0 && arr[idx - 1] !== p - 1 && <span key={`ellipsis-${p}`} className="px-2 py-1 text-sm text-muted-foreground">…</span>}
+                  <button
+                    key={p}
+                    className={`px-3 py-1 rounded border text-sm ${p === currentPage ? "bg-primary text-white border-primary" : ""}`}
+                    onClick={() => setCurrentPage(p)}
+                  >
+                    {p}
+                  </button>
+                </>
+              ))}
+            <button
+              className="px-3 py-1 rounded border text-sm disabled:opacity-40"
+              disabled={currentPage === Math.ceil(filteredEntries.length / PAGE_SIZE)}
+              onClick={() => setCurrentPage(p => Math.min(Math.ceil(filteredEntries.length / PAGE_SIZE), p + 1))}
+            >
+              {language === "ar" ? "التالي" : "Next"} →
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Journal Entry Review Modal */}
       {selectedEntry && (

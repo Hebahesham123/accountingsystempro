@@ -1,0 +1,1214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Advanced Accounting System — Full Demo</title>
+<style>
+:root{--primary:#1e40af;--primary-light:#3b82f6;--accent:#0ea5e9;--success:#10b981;--warning:#f59e0b;--danger:#ef4444;--sidebar:#0f172a;--sidebar-text:#94a3b8;--sidebar-active:#1e293b;--bg:#f1f5f9;--card:#ffffff;--border:#e2e8f0;--text:#0f172a;--text-muted:#64748b;--shadow:0 1px 3px rgba(0,0,0,.1),0 1px 2px rgba(0,0,0,.06)}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);display:flex;height:100vh;overflow:hidden}
+/* SIDEBAR */
+#sidebar{width:240px;background:var(--sidebar);display:flex;flex-direction:column;flex-shrink:0;overflow-y:auto}
+.logo{padding:20px 16px;border-bottom:1px solid rgba(255,255,255,.07)}
+.logo h2{color:#fff;font-size:15px;font-weight:700}
+.logo p{color:var(--sidebar-text);font-size:11px;margin-top:2px}
+.nav-section{padding:12px 12px 4px;font-size:10px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.08em}
+.nav-item{display:flex;align-items:center;gap:10px;padding:9px 14px;margin:1px 8px;border-radius:8px;cursor:pointer;font-size:13px;color:var(--sidebar-text);transition:all .15s;border:none;background:none;width:calc(100% - 16px);text-align:left}
+.nav-item:hover{background:rgba(255,255,255,.06);color:#e2e8f0}
+.nav-item.active{background:var(--primary);color:#fff}
+.nav-item .icon{font-size:16px;min-width:20px;text-align:center}
+.nav-item .badge{margin-left:auto;background:var(--danger);color:#fff;font-size:10px;padding:1px 6px;border-radius:50px;font-weight:700}
+/* MAIN */
+#main{flex:1;display:flex;flex-direction:column;overflow:hidden}
+.topbar{background:#fff;border-bottom:1px solid var(--border);padding:0 24px;height:56px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.topbar-title{font-size:18px;font-weight:700;color:var(--text)}
+.topbar-right{display:flex;align-items:center;gap:12px}
+.avatar{width:34px;height:34px;border-radius:50%;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;cursor:pointer}
+#content{flex:1;overflow-y:auto;padding:24px}
+/* CARDS */
+.card{background:var(--card);border-radius:12px;box-shadow:var(--shadow);border:1px solid var(--border)}
+.card-header{padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.card-title{font-size:15px;font-weight:700}
+.card-body{padding:20px}
+/* GRID */
+.grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+.grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.grid-2{display:grid;grid-template-columns:repeat(2,1fr);gap:16px}
+/* KPI */
+.kpi{background:var(--card);border-radius:12px;padding:20px;border:1px solid var(--border);box-shadow:var(--shadow)}
+.kpi-label{font-size:12px;color:var(--text-muted);font-weight:600;margin-bottom:6px}
+.kpi-value{font-size:1.8rem;font-weight:800;margin-bottom:4px}
+.kpi-sub{font-size:12px;color:var(--text-muted)}
+/* BUTTONS */
+.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;border:none;transition:all .15s}
+.btn-primary{background:var(--primary);color:#fff}
+.btn-primary:hover{background:#1d4ed8}
+.btn-success{background:var(--success);color:#fff}
+.btn-success:hover{background:#059669}
+.btn-danger{background:var(--danger);color:#fff}
+.btn-danger:hover{background:#dc2626}
+.btn-outline{background:#fff;color:var(--text);border:1px solid var(--border)}
+.btn-outline:hover{background:var(--bg)}
+.btn-sm{padding:5px 12px;font-size:12px}
+.btn-xs{padding:3px 8px;font-size:11px;border-radius:6px}
+/* TABLE */
+.table-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{background:#f8fafc;padding:10px 14px;text-align:left;font-weight:600;font-size:12px;color:var(--text-muted);border-bottom:2px solid var(--border);white-space:nowrap}
+td{padding:10px 14px;border-bottom:1px solid var(--border);vertical-align:middle}
+tr:hover td{background:#f8fafc}
+tr:last-child td{border-bottom:none}
+/* BADGES */
+.badge{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:50px;font-size:11px;font-weight:600}
+.badge-success{background:#dcfce7;color:#166534}
+.badge-danger{background:#fee2e2;color:#991b1b}
+.badge-warning{background:#fef9c3;color:#854d0e}
+.badge-info{background:#dbeafe;color:#1e40af}
+.badge-gray{background:#f1f5f9;color:#475569}
+/* FORMS */
+.form-group{margin-bottom:16px}
+label{display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:6px}
+input,select,textarea{width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:#fff;color:var(--text);transition:border .15s;font-family:inherit}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--primary-light);box-shadow:0 0 0 3px rgba(59,130,246,.1)}
+/* MODAL */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;z-index:1000;padding:20px}
+.modal{background:#fff;border-radius:16px;width:100%;max-width:720px;max-height:90vh;display:flex;flex-direction:column;box-shadow:0 25px 50px rgba(0,0,0,.25)}
+.modal-header{padding:20px 24px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.modal-title{font-size:16px;font-weight:700}
+.modal-body{padding:24px;overflow-y:auto;flex:1}
+.modal-footer{padding:16px 24px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:10px;flex-shrink:0}
+.close-btn{background:none;border:none;cursor:pointer;color:var(--text-muted);font-size:20px;line-height:1;padding:2px}
+.close-btn:hover{color:var(--text)}
+/* BALANCE INDICATOR */
+.balance-bar{display:flex;align-items:center;gap:12px;padding:12px 16px;border-radius:10px;font-size:13px;font-weight:600;margin-bottom:12px}
+.balance-ok{background:#dcfce7;color:#166534}
+.balance-err{background:#fee2e2;color:#991b1b}
+/* JOURNAL LINE */
+.je-line{display:grid;grid-template-columns:2fr 1fr 1fr auto;gap:8px;align-items:center;margin-bottom:8px}
+.je-line input{margin:0}
+/* TOTALS ROW */
+.totals-row{background:#f8fafc!important}
+.totals-row td{font-weight:700;border-top:2px solid var(--border)!important}
+/* REPORT SECTION */
+.report-section{margin-bottom:24px}
+.report-section-header{font-size:12px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;padding:8px 0;border-bottom:2px solid var(--border);margin-bottom:8px}
+.report-row{display:flex;justify-content:space-between;padding:6px 0;font-size:14px;border-bottom:1px solid #f1f5f9}
+.report-row:last-child{border-bottom:none}
+.report-total{display:flex;justify-content:space-between;padding:10px 0;font-size:15px;font-weight:700;border-top:2px solid var(--border);border-bottom:3px double var(--border);margin-top:4px}
+.report-subtotal{display:flex;justify-content:space-between;padding:8px 0;font-size:14px;font-weight:600;border-top:1px solid var(--border);margin-top:4px}
+.amount{font-family:'Courier New',monospace;color:var(--text)}
+.amount.neg{color:var(--danger)}
+.amount.pos{color:var(--success)}
+/* TABS */
+.tabs{display:flex;gap:4px;background:#f1f5f9;padding:4px;border-radius:10px;margin-bottom:20px;width:fit-content}
+.tab{padding:7px 16px;border-radius:7px;font-size:13px;font-weight:600;cursor:pointer;color:var(--text-muted);border:none;background:none;transition:all .15s}
+.tab.active{background:#fff;color:var(--primary);box-shadow:var(--shadow)}
+/* PO WORKFLOW */
+.po-steps{display:flex;align-items:center;gap:0;margin:12px 0}
+.po-step{flex:1;text-align:center;font-size:11px;padding:6px 4px;border-radius:6px}
+.po-step.done{background:#dcfce7;color:#166534}
+.po-step.current{background:#dbeafe;color:#1e40af;font-weight:700}
+.po-step.pending{background:#f1f5f9;color:#94a3b8}
+.po-arrow{color:#94a3b8;font-size:12px;flex-shrink:0;padding:0 4px}
+/* ACCOUNT TREE */
+.acc-row{display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:6px;cursor:pointer;transition:background .1s}
+.acc-row:hover{background:#f1f5f9}
+.acc-row.parent{font-weight:600;background:#f8fafc}
+.acc-indent{display:flex;flex-direction:column;padding-left:20px;border-left:2px solid #e2e8f0;margin-left:14px}
+.acc-expand{cursor:pointer;color:var(--text-muted);font-size:12px;min-width:16px}
+/* ALERT */
+.alert{padding:12px 16px;border-radius:10px;font-size:13px;margin-bottom:16px;display:flex;align-items:flex-start;gap:10px}
+.alert-info{background:#eff6ff;color:#1e40af;border:1px solid #bfdbfe}
+.alert-success{background:#f0fdf4;color:#166534;border:1px solid #bbf7d0}
+.alert-warning{background:#fffbeb;color:#92400e;border:1px solid #fde68a}
+/* CHART SIMPLE */
+.mini-chart{display:flex;align-items:flex-end;gap:4px;height:60px;padding:4px 0}
+.mini-bar{flex:1;border-radius:3px 3px 0 0;min-width:8px;background:var(--primary-light);opacity:.7;transition:opacity .15s}
+.mini-bar:hover{opacity:1}
+/* EMPTY STATE */
+.empty{text-align:center;padding:40px 20px;color:var(--text-muted)}
+.empty-icon{font-size:48px;margin-bottom:12px}
+/* DATE FILTER BAR */
+.filter-bar{display:flex;align-items:flex-end;gap:12px;padding:16px;background:#f8fafc;border-radius:10px;margin-bottom:20px}
+.filter-bar .form-group{margin:0;flex:1}
+/* SCROLLBAR */
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:3px}
+::-webkit-scrollbar-thumb:hover{background:#94a3b8}
+/* RESPONSIVE helper */
+.flex{display:flex} .items-center{align-items:center} .gap-2{gap:8px} .gap-3{gap:12px} .ml-auto{margin-left:auto} .mb-4{margin-bottom:16px} .mb-6{margin-bottom:24px} .mt-2{margin-top:8px} .mt-4{margin-top:16px} .w-full{width:100%} .text-right{text-align:right} .text-sm{font-size:13px} .text-xs{font-size:11px} .font-bold{font-weight:700} .text-muted{color:var(--text-muted)}
+</style>
+</head>
+<body>
+
+<!-- SIDEBAR -->
+<div id="sidebar">
+  <div class="logo">
+    <h2>🏢 AccSys Pro</h2>
+    <p>Advanced Accounting Platform</p>
+  </div>
+  <div class="nav-section">Main</div>
+  <button class="nav-item active" onclick="navigate('dashboard')"><span class="icon">📊</span>Dashboard</button>
+  <div class="nav-section">Accounting</div>
+  <button class="nav-item" onclick="navigate('je-list')"><span class="icon">📒</span>Journal Entries</button>
+  <button class="nav-item" onclick="navigate('coa')"><span class="icon">🌳</span>Chart of Accounts</button>
+  <div class="nav-section">Reports</div>
+  <button class="nav-item" onclick="navigate('trial-balance')"><span class="icon">⚖️</span>Trial Balance</button>
+  <button class="nav-item" onclick="navigate('income-stmt')"><span class="icon">📈</span>Income Statement</button>
+  <button class="nav-item" onclick="navigate('balance-sheet')"><span class="icon">📋</span>Balance Sheet</button>
+  <button class="nav-item" onclick="navigate('cashflow')"><span class="icon">💧</span>Cash Flow</button>
+  <button class="nav-item" onclick="navigate('gl')"><span class="icon">📖</span>General Ledger</button>
+  <div class="nav-section">Operations</div>
+  <button class="nav-item" onclick="navigate('po')"><span class="icon">🛒</span>Purchase Orders</button>
+  <div style="flex:1"></div>
+  <div style="padding:12px;border-top:1px solid rgba(255,255,255,.07);margin-top:12px">
+    <div style="display:flex;align-items:center;gap:10px;padding:8px">
+      <div style="width:34px;height:34px;border-radius:50%;background:#1e40af;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px">A</div>
+      <div><div style="color:#e2e8f0;font-size:13px;font-weight:600">Admin</div><div style="color:#64748b;font-size:11px">Administrator</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- MAIN -->
+<div id="main">
+  <div class="topbar">
+    <div class="topbar-title" id="page-title">Dashboard</div>
+    <div class="topbar-right">
+      <span class="text-sm text-muted" id="current-date"></span>
+      <div class="avatar">A</div>
+    </div>
+  </div>
+  <div id="content"></div>
+</div>
+
+<!-- MODAL -->
+<div id="modal-overlay" class="modal-overlay" style="display:none" onclick="if(event.target===this)closeModal()">
+  <div class="modal" id="modal-box">
+    <div class="modal-header">
+      <div class="modal-title" id="modal-title"></div>
+      <button class="close-btn" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body" id="modal-body"></div>
+    <div class="modal-footer" id="modal-footer"></div>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// DATA MODEL
+// ============================================================
+const ACCOUNT_TYPES = {
+  Asset:     { normal: 'debit',  color: '#22c55e', bg: '#dcfce7' },
+  Liability: { normal: 'credit', color: '#ef4444', bg: '#fee2e2' },
+  Equity:    { normal: 'credit', color: '#3b82f6', bg: '#dbeafe' },
+  Revenue:   { normal: 'credit', color: '#8b5cf6', bg: '#ede9fe' },
+  Expense:   { normal: 'debit',  color: '#f97316', bg: '#ffedd5' },
+};
+
+// Chart of Accounts
+const defaultAccounts = [
+  // ASSETS
+  {id:'1000',code:'1000',name:'الاصول / Assets',          type:'Asset',    parent:null,  is_header:true},
+  {id:'1050',code:'1050',name:'الاصول الثابتة / Fixed Assets',type:'Asset', parent:'1000',is_header:true},
+  {id:'1051',code:'1050-1',name:'الاثاث المكتبي / Office Furniture',type:'Asset',parent:'1050',is_header:false},
+  {id:'1052',code:'1050-2',name:'اجهزة كمبيوتر / Computers & Equipment',type:'Asset',parent:'1050',is_header:false},
+  {id:'1053',code:'1050-3',name:'معدات موقع / Site Equipment',type:'Asset',parent:'1050',is_header:false},
+  {id:'1054',code:'1300',name:'مجمع الاهلاك / Accumulated Depreciation',type:'Asset',parent:'1050',is_header:false},
+  {id:'1100',code:'1100',name:'الاصول المتداولة / Current Assets',type:'Asset',parent:'1000',is_header:true},
+  {id:'1110',code:'1110',name:'خزينة / Cash & Treasury',  type:'Asset',    parent:'1100',is_header:false},
+  {id:'1120',code:'1120',name:'ذمم مدينة / Accounts Receivable',type:'Asset',parent:'1100',is_header:false},
+  {id:'1130',code:'1130',name:'مخزون / Inventory',         type:'Asset',    parent:'1100',is_header:false},
+  // LIABILITIES
+  {id:'2000',code:'2000',name:'الخصوم / Liabilities',       type:'Liability',parent:null, is_header:true},
+  {id:'2100',code:'2100',name:'خصوم متداولة / Current Liabilities',type:'Liability',parent:'2000',is_header:true},
+  {id:'2110',code:'2110',name:'ذمم دائنة / Accounts Payable',type:'Liability',parent:'2100',is_header:false},
+  {id:'2120',code:'2120',name:'قروض قصيرة / Short-term Loans',type:'Liability',parent:'2100',is_header:false},
+  {id:'2130',code:'2130',name:'مصروفات مستحقة / Accrued Expenses',type:'Liability',parent:'2100',is_header:false},
+  {id:'2200',code:'2200',name:'خصوم طويلة / Long-term Liabilities',type:'Liability',parent:'2000',is_header:true},
+  {id:'2210',code:'2210',name:'قروض طويلة / Long-term Loans',type:'Liability',parent:'2200',is_header:false},
+  // EQUITY
+  {id:'3000',code:'3000',name:'حقوق الملكية / Equity',       type:'Equity',  parent:null, is_header:true},
+  {id:'3100',code:'3100',name:'رأس المال / Capital',           type:'Equity',  parent:'3000',is_header:false},
+  {id:'3200',code:'3200',name:'أرباح محتجزة / Retained Earnings',type:'Equity',parent:'3000',is_header:false},
+  {id:'3300',code:'3300',name:'توزيعات أرباح / Dividends',    type:'Equity',  parent:'3000',is_header:false},
+  // REVENUE
+  {id:'4000',code:'4000',name:'الإيرادات / Revenue',          type:'Revenue', parent:null, is_header:true},
+  {id:'4100',code:'4100',name:'إيرادات تشغيل / Operating Revenue',type:'Revenue',parent:'4000',is_header:false},
+  {id:'4200',code:'4200',name:'إيرادات دهانات / Painting Revenue',type:'Revenue',parent:'4000',is_header:false},
+  {id:'4300',code:'4300',name:'إيرادات تنجيد / Upholstery Revenue',type:'Revenue',parent:'4000',is_header:false},
+  {id:'4400',code:'4400',name:'إيرادات أخرى / Other Revenue',  type:'Revenue',parent:'4000',is_header:false},
+  // EXPENSES
+  {id:'5000',code:'5000',name:'المصروفات / Expenses',         type:'Expense', parent:null, is_header:true},
+  {id:'5100',code:'5100',name:'رواتب / Salaries',              type:'Expense', parent:'5000',is_header:false},
+  {id:'5200',code:'5200',name:'إيجار / Rent',                  type:'Expense', parent:'5000',is_header:false},
+  {id:'5300',code:'5300',name:'مرافق / Utilities',             type:'Expense', parent:'5000',is_header:false},
+  {id:'5400',code:'5400',name:'مصاريف إدارية / Admin Expenses',type:'Expense',parent:'5000',is_header:false},
+  {id:'5500',code:'5500',name:'اعمال كهرباء / Electrical Works',type:'Expense',parent:'5000',is_header:false},
+  {id:'5600',code:'5600',name:'مصاريف متنوعة / Misc Expenses', type:'Expense', parent:'5000',is_header:false},
+  {id:'5700',code:'5700',name:'اهلاك / Depreciation Expense',  type:'Expense', parent:'5000',is_header:false},
+];
+
+// Sample Journal Entries (realistic pre-loaded data)
+const defaultJournalEntries = [
+  {id:'JE-001',number:'JE-001',date:'2026-01-01',desc:'رأس المال المبدئي / Initial Capital Investment',
+   lines:[{acc:'1110',debit:500000,credit:0},{acc:'3100',debit:0,credit:500000}]},
+  {id:'JE-002',number:'JE-002',date:'2026-01-05',desc:'شراء اثاث مكتبي / Purchase Office Furniture',
+   lines:[{acc:'1051',debit:80000,credit:0},{acc:'1110',debit:0,credit:80000}]},
+  {id:'JE-003',number:'JE-003',date:'2026-01-10',desc:'شراء اجهزة كمبيوتر / Purchase Computers',
+   lines:[{acc:'1052',debit:120000,credit:0},{acc:'1110',debit:0,credit:120000}]},
+  {id:'JE-004',number:'JE-004',date:'2026-01-15',desc:'إيراد دهانات سوديك - يناير / Painting Revenue - Sodiaq',
+   lines:[{acc:'1110',debit:75000,credit:0},{acc:'4200',debit:0,credit:75000}]},
+  {id:'JE-005',number:'JE-005',date:'2026-01-31',desc:'رواتب يناير / January Salaries',
+   lines:[{acc:'5100',debit:45000,credit:0},{acc:'1110',debit:0,credit:45000}]},
+  {id:'JE-006',number:'JE-006',date:'2026-02-01',desc:'إيجار المقر - فبراير / Office Rent',
+   lines:[{acc:'5200',debit:15000,credit:0},{acc:'1110',debit:0,credit:15000}]},
+  {id:'JE-007',number:'JE-007',date:'2026-02-10',desc:'إيراد تنجيد - سوديك / Upholstery Revenue - Sodiaq',
+   lines:[{acc:'1110',debit:150000,credit:0},{acc:'4300',debit:0,credit:150000}]},
+  {id:'JE-008',number:'JE-008',date:'2026-02-15',desc:'مصاريف مرافق / Utilities Expenses',
+   lines:[{acc:'5300',debit:8000,credit:0},{acc:'1110',debit:0,credit:8000}]},
+  {id:'JE-009',number:'JE-009',date:'2026-02-28',desc:'رواتب فبراير / February Salaries',
+   lines:[{acc:'5100',debit:45000,credit:0},{acc:'1110',debit:0,credit:45000}]},
+  {id:'JE-010',number:'JE-010',date:'2026-03-05',desc:'شراء معدات موقع / Site Equipment Purchase',
+   lines:[{acc:'1053',debit:250000,credit:0},{acc:'2110',debit:0,credit:250000}]},
+  {id:'JE-011',number:'JE-011',date:'2026-03-10',desc:'إيراد اعمال كهرباء - الباتيو / Electrical Works Revenue',
+   lines:[{acc:'1110',debit:35000,credit:0},{acc:'4100',debit:0,credit:35000}]},
+  {id:'JE-012',number:'JE-012',date:'2026-03-15',desc:'دفعة لمورد معدات / Payment to Equipment Supplier',
+   lines:[{acc:'2110',debit:125000,credit:0},{acc:'1110',debit:0,credit:125000}]},
+  {id:'JE-013',number:'JE-013',date:'2026-03-18',desc:'دفعه دهانات سوديك - 341 و 361 / Painting Payment Projects',
+   lines:[{acc:'2110',debit:5005,credit:0},{acc:'2110',debit:5500,credit:0},{acc:'1110',debit:0,credit:10505}]},
+  {id:'JE-014',number:'JE-014',date:'2026-03-31',desc:'رواتب مارس / March Salaries',
+   lines:[{acc:'5100',debit:45000,credit:0},{acc:'1110',debit:0,credit:45000}]},
+  {id:'JE-015',number:'JE-015',date:'2026-03-31',desc:'اهلاك ربع سنوي / Quarterly Depreciation',
+   lines:[{acc:'5700',debit:18000,credit:0},{acc:'1054',debit:0,credit:18000}]},
+  {id:'JE-016',number:'JE-016',date:'2026-04-05',desc:'إيراد تنجيد سوديك / Upholstery Revenue Sodiaq',
+   lines:[{acc:'1110',debit:150000,credit:0},{acc:'4300',debit:0,credit:150000}]},
+  {id:'JE-017',number:'JE-017',date:'2026-04-06',desc:'فاتورة كشلف كهرباء / Electrical Invoice',
+   lines:[{acc:'5500',debit:2320,credit:0},{acc:'1110',debit:0,credit:2320}]},
+  {id:'JE-018',number:'JE-018',date:'2026-04-10',desc:'مصاريف إدارية متنوعة / Admin Expenses',
+   lines:[{acc:'5400',debit:12000,credit:0},{acc:'1110',debit:0,credit:12000}]},
+  {id:'JE-019',number:'JE-019',date:'2026-04-12',desc:'دفعة من إيرادات / Revenue Collection',
+   lines:[{acc:'1110',debit:88000,credit:0},{acc:'4100',debit:0,credit:88000}]},
+  {id:'JE-020',number:'JE-020',date:'2026-04-14',desc:'رواتب أبريل (مقدمة) / April Salaries Advance',
+   lines:[{acc:'5100',debit:22000,credit:0},{acc:'1110',debit:0,credit:22000}]},
+];
+
+// Purchase Orders
+const defaultPOs = [
+  {id:'PO-001',number:'PO-001',date:'2026-01-08',vendor:'مصنع الاثاث الحديث',desc:'اثاث مكتبي للمقر الجديد',amount:80000,status:'approved',approval1:true,approval2:true,supply:true},
+  {id:'PO-002',number:'PO-002',date:'2026-03-01',vendor:'شركة المعدات التقنية',desc:'معدات موقع - مشروع الباتيو',amount:250000,status:'approved',approval1:true,approval2:true,supply:false},
+  {id:'PO-003',number:'PO-003',date:'2026-04-01',vendor:'مورد المستلزمات المكتبية',desc:'مستلزمات مكتبية متنوعة',amount:15000,status:'pending',approval1:false,approval2:false,supply:false},
+  {id:'PO-004',number:'PO-004',date:'2026-04-10',vendor:'شركة الصيانة العامة',desc:'صيانة وإصلاح المعدات',amount:28000,status:'pending',approval1:true,approval2:false,supply:false},
+];
+
+// ============================================================
+// STATE
+// ============================================================
+let accounts = JSON.parse(localStorage.getItem('acc_accounts') || 'null') || defaultAccounts;
+let journalEntries = JSON.parse(localStorage.getItem('acc_je') || 'null') || defaultJournalEntries;
+let purchaseOrders = JSON.parse(localStorage.getItem('acc_po') || 'null') || defaultPOs;
+let currentPage = 'dashboard';
+let expandedAccounts = new Set(['1000','2000','3000','4000','5000']);
+let editingJE = null;
+
+function save(){
+  localStorage.setItem('acc_accounts', JSON.stringify(accounts));
+  localStorage.setItem('acc_je', JSON.stringify(journalEntries));
+  localStorage.setItem('acc_po', JSON.stringify(purchaseOrders));
+}
+
+// ============================================================
+// ACCOUNTING ENGINE
+// ============================================================
+function getAccountById(id){ return accounts.find(a=>a.id===id); }
+function getAccountByCode(code){ return accounts.find(a=>a.code===code); }
+
+// Get all descendant IDs of an account
+function getDescendants(accountId){
+  const children = accounts.filter(a=>a.parent===accountId).map(a=>a.id);
+  return children.reduce((all,cid)=>[...all,cid,...getDescendants(cid)],children);
+}
+
+// Calculate raw debit/credit totals for a leaf account
+function getAccountTotals(accountId, startDate, endDate){
+  let debit=0,credit=0;
+  for(const je of journalEntries){
+    if(startDate && je.date < startDate) continue;
+    if(endDate   && je.date > endDate)   continue;
+    for(const line of je.lines){
+      if(line.acc === accountId){
+        debit  += line.debit  || 0;
+        credit += line.credit || 0;
+      }
+    }
+  }
+  return {debit:Math.round(debit*100)/100, credit:Math.round(credit*100)/100};
+}
+
+// Net balance respecting normal balance
+function getAccountBalance(accountId, startDate, endDate){
+  const acc = getAccountById(accountId);
+  if(!acc) return 0;
+  if(acc.is_header){
+    const kids = getDescendants(accountId);
+    return kids.reduce((s,kid)=>s+getAccountBalance(kid,startDate,endDate),0);
+  }
+  const {debit,credit} = getAccountTotals(accountId,startDate,endDate);
+  const normalDebit = ACCOUNT_TYPES[acc.type]?.normal === 'debit';
+  return Math.round((normalDebit ? debit-credit : credit-debit)*100)/100;
+}
+
+// Grand total debit/credit (for trial balance)
+function getGrandTotals(startDate,endDate){
+  let td=0,tc=0;
+  for(const je of journalEntries){
+    if(startDate && je.date < startDate) continue;
+    if(endDate   && je.date > endDate)   continue;
+    for(const line of je.lines){td+=line.debit||0;tc+=line.credit||0;}
+  }
+  return {debit:Math.round(td*100)/100,credit:Math.round(tc*100)/100};
+}
+
+function fmt(n){
+  if(n===undefined||n===null) return '-';
+  const abs=Math.abs(n);
+  const s=abs.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+  return n<0?`(${s})`:s;
+}
+function fmtUSD(n){return '$'+fmt(n);}
+
+// ============================================================
+// NAVIGATION
+// ============================================================
+function navigate(page){
+  currentPage=page;
+  document.querySelectorAll('.nav-item').forEach(b=>{
+    b.classList.toggle('active', b.getAttribute('onclick')===`navigate('${page}')`);
+  });
+  const titles={
+    dashboard:'📊 Dashboard','je-list':'📒 Journal Entries',coa:'🌳 Chart of Accounts',
+    'trial-balance':'⚖️ Trial Balance','income-stmt':'📈 Income Statement',
+    'balance-sheet':'📋 Balance Sheet',cashflow:'💧 Cash Flow Statement',
+    gl:'📖 General Ledger',po:'🛒 Purchase Orders'
+  };
+  document.getElementById('page-title').textContent = titles[page]||page;
+  const map={
+    dashboard:renderDashboard,'je-list':renderJEList,coa:renderCOA,
+    'trial-balance':renderTrialBalance,'income-stmt':renderIncomeStmt,
+    'balance-sheet':renderBalanceSheet,cashflow:renderCashFlow,
+    gl:renderGL,po:renderPO
+  };
+  (map[page]||renderDashboard)();
+}
+
+// ============================================================
+// DASHBOARD
+// ============================================================
+function renderDashboard(){
+  const now = new Date();
+  const sd = now.getFullYear()+'-01-01';
+  const ed = now.toISOString().split('T')[0];
+
+  const cash = getAccountBalance('1110',null,null);
+  const totalRev = ['4100','4200','4300','4400'].reduce((s,id)=>s+getAccountBalance(id,sd,ed),0);
+  const totalExp = ['5100','5200','5300','5400','5500','5600','5700'].reduce((s,id)=>s+getAccountBalance(id,sd,ed),0);
+  const netIncome = totalRev - totalExp;
+  const totalAssets = getAccountBalance('1000',null,null);
+
+  const balanced = journalEntries.filter(je=>{
+    const td=je.lines.reduce((s,l)=>s+(l.debit||0),0);
+    const tc=je.lines.reduce((s,l)=>s+(l.credit||0),0);
+    return Math.abs(td-tc)<0.01;
+  }).length;
+
+  // Recent entries
+  const recent = [...journalEntries].sort((a,b)=>b.date.localeCompare(a.date)).slice(0,5);
+
+  // Monthly revenue for mini chart
+  const months=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const monthlyRev = months.map((m,i)=>{
+    const ms = `${now.getFullYear()}-${String(i+1).padStart(2,'0')}-01`;
+    const me = `${now.getFullYear()}-${String(i+1).padStart(2,'0')}-31`;
+    return ['4100','4200','4300','4400'].reduce((s,id)=>s+getAccountBalance(id,ms,me),0);
+  });
+  const maxRev = Math.max(...monthlyRev,1);
+
+  document.getElementById('content').innerHTML = `
+<div class="grid-4 mb-4">
+  <div class="kpi">
+    <div class="kpi-label">💵 Cash Balance</div>
+    <div class="kpi-value" style="color:#1e40af">${fmtUSD(cash)}</div>
+    <div class="kpi-sub">Account 1110</div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-label">📈 Total Revenue (YTD)</div>
+    <div class="kpi-value" style="color:#10b981">${fmtUSD(totalRev)}</div>
+    <div class="kpi-sub">Current year</div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-label">💸 Total Expenses (YTD)</div>
+    <div class="kpi-value" style="color:#f97316">${fmtUSD(totalExp)}</div>
+    <div class="kpi-sub">Current year</div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-label">${netIncome>=0?'✅ Net Income':'❌ Net Loss'}</div>
+    <div class="kpi-value" style="color:${netIncome>=0?'#10b981':'#ef4444'}">${fmtUSD(netIncome)}</div>
+    <div class="kpi-sub">Revenue − Expenses</div>
+  </div>
+</div>
+<div class="grid-2 mb-4">
+  <div class="card">
+    <div class="card-header"><div class="card-title">📊 Monthly Revenue</div></div>
+    <div class="card-body">
+      <div class="mini-chart" style="height:80px">
+        ${monthlyRev.map((v,i)=>`<div class="mini-bar" title="${months[i]}: ${fmtUSD(v)}" style="height:${Math.max(4,v/maxRev*100)}%;background:${i===now.getMonth()?'#1e40af':'#93c5fd'}"></div>`).join('')}
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:10px;color:#94a3b8;margin-top:4px">
+        ${months.map(m=>`<span>${m}</span>`).join('')}
+      </div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-header"><div class="card-title">📐 System Status</div></div>
+    <div class="card-body">
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <div class="flex items-center gap-2"><span style="font-size:18px">📒</span><span class="text-sm font-bold">${journalEntries.length}</span><span class="text-sm text-muted">Journal Entries</span><span style="margin-left:auto" class="badge badge-info">${balanced}/${journalEntries.length} balanced</span></div>
+        <div class="flex items-center gap-2"><span style="font-size:18px">🌳</span><span class="text-sm font-bold">${accounts.length}</span><span class="text-sm text-muted">Accounts</span><span style="margin-left:auto" class="badge badge-success">Active</span></div>
+        <div class="flex items-center gap-2"><span style="font-size:18px">🏢</span><span class="text-sm font-bold">${fmtUSD(totalAssets)}</span><span class="text-sm text-muted">Total Assets</span></div>
+        <div class="flex items-center gap-2"><span style="font-size:18px">⚖️</span><span class="text-sm font-bold">Double-Entry</span><span class="text-sm text-muted">Bookkeeping</span><span style="margin-left:auto" class="badge badge-success">✓ Enforced</span></div>
+        <div class="flex items-center gap-2"><span style="font-size:18px">🌍</span><span class="text-sm font-bold">Bilingual</span><span class="text-sm text-muted">EN / AR</span><span style="margin-left:auto" class="badge badge-info">Active</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="card">
+  <div class="card-header">
+    <div class="card-title">📒 Recent Journal Entries</div>
+    <button class="btn btn-primary btn-sm" onclick="navigate('je-list')">View All</button>
+  </div>
+  <div class="card-body" style="padding:0">
+    <div class="table-wrap">
+    <table><thead><tr><th>Entry #</th><th>Date</th><th>Description</th><th class="text-right">Amount</th><th>Status</th></tr></thead>
+    <tbody>
+    ${recent.map(je=>{
+      const td=je.lines.reduce((s,l)=>s+(l.debit||0),0);
+      const tc=je.lines.reduce((s,l)=>s+(l.credit||0),0);
+      const bal=Math.abs(td-tc)<0.01;
+      return `<tr>
+        <td><span style="font-family:monospace;color:#1e40af;font-weight:700">${je.number}</span></td>
+        <td class="text-muted">${je.date}</td>
+        <td>${je.desc}</td>
+        <td class="text-right font-bold">${fmtUSD(td)}</td>
+        <td><span class="badge ${bal?'badge-success':'badge-danger'}">${bal?'✓ Balanced':'✗ Unbalanced'}</span></td>
+      </tr>`;
+    }).join('')}
+    </tbody></table>
+    </div>
+  </div>
+</div>`;
+}
+
+// ============================================================
+// JOURNAL ENTRIES LIST
+// ============================================================
+function renderJEList(){
+  const sorted = [...journalEntries].sort((a,b)=>b.date.localeCompare(a.date));
+  const totalD = journalEntries.reduce((s,je)=>s+je.lines.reduce((ss,l)=>ss+(l.debit||0),0),0);
+  const totalC = journalEntries.reduce((s,je)=>s+je.lines.reduce((ss,l)=>ss+(l.credit||0),0),0);
+
+  document.getElementById('content').innerHTML = `
+<div class="flex items-center gap-2 mb-4">
+  <button class="btn btn-primary" onclick="openNewJE()">➕ New Journal Entry</button>
+  <div class="ml-auto flex gap-2 items-center">
+    <span class="badge badge-success">Total Debits: ${fmtUSD(totalD)}</span>
+    <span class="badge badge-info">Total Credits: ${fmtUSD(totalC)}</span>
+    <span class="badge ${Math.abs(totalD-totalC)<0.01?'badge-success':'badge-danger'}">${Math.abs(totalD-totalC)<0.01?'✓ Balanced':'✗ Diff: '+fmtUSD(Math.abs(totalD-totalC))}</span>
+  </div>
+</div>
+<div class="card">
+  <div class="card-body" style="padding:0">
+    <div class="table-wrap">
+    <table><thead><tr><th>Entry #</th><th>Date</th><th>Description</th><th>Lines</th><th class="text-right">Debit</th><th class="text-right">Credit</th><th>Status</th><th>Actions</th></tr></thead>
+    <tbody>
+    ${sorted.map(je=>{
+      const td=je.lines.reduce((s,l)=>s+(l.debit||0),0);
+      const tc=je.lines.reduce((s,l)=>s+(l.credit||0),0);
+      const bal=Math.abs(td-tc)<0.01;
+      const accs = [...new Set(je.lines.map(l=>{const a=getAccountById(l.acc);return a?a.name.split('/')[0].trim():l.acc;}))].join(', ');
+      return `<tr>
+        <td><span style="font-family:monospace;color:#1e40af;font-weight:700;cursor:pointer" onclick="viewJE('${je.id}')">${je.number}</span></td>
+        <td class="text-muted">${je.date}</td>
+        <td style="max-width:220px"><div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${je.desc}">${je.desc}</div><div style="font-size:11px;color:#94a3b8;margin-top:2px">${accs}</div></td>
+        <td><span class="badge badge-gray">${je.lines.length}</span></td>
+        <td class="text-right" style="color:#10b981;font-family:monospace">${fmtUSD(td)}</td>
+        <td class="text-right" style="color:#3b82f6;font-family:monospace">${fmtUSD(tc)}</td>
+        <td><span class="badge ${bal?'badge-success':'badge-danger'}">${bal?'✓':'✗ Unbalanced'}</span></td>
+        <td>
+          <div class="flex gap-2">
+            <button class="btn btn-xs btn-outline" onclick="viewJE('${je.id}')">👁</button>
+            <button class="btn btn-xs btn-primary" onclick="editJE('${je.id}')">✏️</button>
+            <button class="btn btn-xs btn-danger" onclick="deleteJE('${je.id}')">🗑</button>
+          </div>
+        </td>
+      </tr>`;
+    }).join('')}
+    </tbody></table>
+    </div>
+  </div>
+</div>`;
+}
+
+// ============================================================
+// VIEW JOURNAL ENTRY
+// ============================================================
+function viewJE(id){
+  const je = journalEntries.find(e=>e.id===id);
+  if(!je) return;
+  const td=je.lines.reduce((s,l)=>s+(l.debit||0),0);
+  const tc=je.lines.reduce((s,l)=>s+(l.credit||0),0);
+  const bal=Math.abs(td-tc)<0.01;
+  openModal('Journal Entry: '+je.number,`
+<div class="grid-2 mb-4">
+  <div><div class="text-xs text-muted">Entry Number</div><div class="font-bold" style="font-family:monospace;color:#1e40af">${je.number}</div></div>
+  <div><div class="text-xs text-muted">Date</div><div class="font-bold">${je.date}</div></div>
+</div>
+<div class="mb-4"><div class="text-xs text-muted">Description</div><div style="font-size:14px">${je.desc}</div></div>
+<div class="table-wrap">
+<table><thead><tr><th>Account</th><th>Type</th><th class="text-right">Debit</th><th class="text-right">Credit</th></tr></thead>
+<tbody>
+${je.lines.map(l=>{
+  const a=getAccountById(l.acc)||{name:l.acc,type:'?'};
+  const t=ACCOUNT_TYPES[a.type]||{color:'#64748b',bg:'#f1f5f9'};
+  return `<tr>
+    <td><span style="font-family:monospace;font-size:12px;color:#64748b">${a.code||l.acc}</span> ${a.name}</td>
+    <td><span class="badge" style="background:${t.bg};color:${t.color}">${a.type}</span></td>
+    <td class="text-right" style="color:#10b981;font-family:monospace">${l.debit?fmtUSD(l.debit):'-'}</td>
+    <td class="text-right" style="color:#3b82f6;font-family:monospace">${l.credit?fmtUSD(l.credit):'-'}</td>
+  </tr>`;
+}).join('')}
+<tr class="totals-row"><td colspan="2"><strong>TOTALS</strong></td><td class="text-right" style="color:#10b981;font-family:monospace"><strong>${fmtUSD(td)}</strong></td><td class="text-right" style="color:#3b82f6;font-family:monospace"><strong>${fmtUSD(tc)}</strong></td></tr>
+</tbody></table>
+</div>
+<div class="balance-bar ${bal?'balance-ok':'balance-err'} mt-4">
+  ${bal?'✅ This entry is BALANCED — Debit = Credit = '+fmtUSD(td):'❌ UNBALANCED — Difference: '+fmtUSD(Math.abs(td-tc))}
+</div>
+`,'','');
+}
+
+// ============================================================
+// NEW / EDIT JOURNAL ENTRY
+// ============================================================
+let jeLines = [];
+function openNewJE(){
+  editingJE=null;
+  jeLines=[{acc:'',debit:'',credit:''},{acc:'',debit:'',credit:''}];
+  const today=new Date().toISOString().split('T')[0];
+  openModal('📒 New Journal Entry',buildJEForm(today,''),`
+    <button class="btn btn-outline" onclick="closeModal()">Cancel</button>
+    <button class="btn btn-primary" onclick="saveJE()">💾 Save Entry</button>
+  `);
+  updateJEBalance();
+}
+function editJE(id){
+  const je=journalEntries.find(e=>e.id===id);
+  if(!je) return;
+  editingJE=id;
+  jeLines=je.lines.map(l=>({acc:l.acc,debit:l.debit||'',credit:l.credit||''}));
+  openModal('✏️ Edit Entry: '+je.number,buildJEForm(je.date,je.desc),`
+    <button class="btn btn-outline" onclick="closeModal()">Cancel</button>
+    <button class="btn btn-primary" onclick="saveJE()">💾 Save Changes</button>
+  `);
+  updateJEBalance();
+}
+function buildJEForm(date,desc){
+  const accOpts=accounts.filter(a=>!a.is_header).map(a=>`<option value="${a.id}">${a.code} — ${a.name}</option>`).join('');
+  return `
+<div class="grid-2 mb-4">
+  <div class="form-group"><label>Entry Date</label><input type="date" id="je-date" value="${date}"></div>
+  <div class="form-group"><label>Description</label><input type="text" id="je-desc" value="${desc}" placeholder="Entry description..."></div>
+</div>
+<div class="balance-bar balance-err" id="je-balance-bar">Debit: $0.00 | Credit: $0.00 | Difference: $0.00</div>
+<div style="font-size:12px;color:#64748b;margin-bottom:8px;display:grid;grid-template-columns:2fr 1fr 1fr auto;gap:8px;padding:0 4px">
+  <strong>Account</strong><strong>Debit ($)</strong><strong>Credit ($)</strong><span></span>
+</div>
+<div id="je-lines-container">${jeLines.map((_,i)=>buildJELine(i,accOpts)).join('')}</div>
+<button class="btn btn-outline btn-sm mt-4" onclick="addJELine()">➕ Add Line</button>
+<div class="alert alert-info mt-4">
+  <span>💡</span><span>Enter debit OR credit per line. Each entry must balance: Total Debits = Total Credits.</span>
+</div>`;
+}
+function buildJELine(i,accOpts){
+  if(!accOpts) accOpts=accounts.filter(a=>!a.is_header).map(a=>`<option value="${a.id}">${a.code} — ${a.name}</option>`).join('');
+  const l=jeLines[i]||{acc:'',debit:'',credit:''};
+  return `<div class="je-line" id="je-line-${i}">
+    <select onchange="jeLines[${i}].acc=this.value" style="margin:0"><option value="">— Select Account —</option>${accOpts.replace(`value="${l.acc}"`,`value="${l.acc}" selected`)}</select>
+    <input type="number" min="0" step="0.01" placeholder="0.00" value="${l.debit||''}" onchange="jeLines[${i}].debit=parseFloat(this.value)||0;jeLines[${i}].credit=0;updateJEBalance()" oninput="jeLines[${i}].debit=parseFloat(this.value)||0;updateJEBalance()" style="margin:0">
+    <input type="number" min="0" step="0.01" placeholder="0.00" value="${l.credit||''}" onchange="jeLines[${i}].credit=parseFloat(this.value)||0;jeLines[${i}].debit=0;updateJEBalance()" oninput="jeLines[${i}].credit=parseFloat(this.value)||0;updateJEBalance()" style="margin:0">
+    ${jeLines.length>2?`<button class="btn btn-xs btn-danger" onclick="removeJELine(${i})">✕</button>`:'<span></span>'}
+  </div>`;
+}
+function addJELine(){
+  jeLines.push({acc:'',debit:'',credit:''});
+  const accOpts=accounts.filter(a=>!a.is_header).map(a=>`<option value="${a.id}">${a.code} — ${a.name}</option>`).join('');
+  document.getElementById('je-lines-container').insertAdjacentHTML('beforeend',buildJELine(jeLines.length-1,accOpts));
+  updateJEBalance();
+}
+function removeJELine(i){
+  jeLines.splice(i,1);
+  const accOpts=accounts.filter(a=>!a.is_header).map(a=>`<option value="${a.id}">${a.code} — ${a.name}</option>`).join('');
+  document.getElementById('je-lines-container').innerHTML=jeLines.map((_,idx)=>buildJELine(idx,accOpts)).join('');
+  updateJEBalance();
+}
+function updateJEBalance(){
+  const td=jeLines.reduce((s,l)=>s+(parseFloat(l.debit)||0),0);
+  const tc=jeLines.reduce((s,l)=>s+(parseFloat(l.credit)||0),0);
+  const diff=Math.abs(td-tc);
+  const bal=diff<0.01;
+  const bar=document.getElementById('je-balance-bar');
+  if(bar){
+    bar.className=`balance-bar ${bal?'balance-ok':'balance-err'}`;
+    bar.textContent=`Debit: ${fmtUSD(td)} | Credit: ${fmtUSD(tc)} | ${bal?'✅ BALANCED':'❌ Difference: '+fmtUSD(diff)}`;
+  }
+}
+function saveJE(){
+  const date=document.getElementById('je-date')?.value;
+  const desc=document.getElementById('je-desc')?.value;
+  // Read current values from DOM inputs
+  document.querySelectorAll('#je-lines-container .je-line').forEach((row,i)=>{
+    const sel=row.querySelector('select');
+    const inputs=row.querySelectorAll('input');
+    if(jeLines[i]){
+      jeLines[i].acc=sel?sel.value:'';
+      jeLines[i].debit=parseFloat(inputs[0]?.value)||0;
+      jeLines[i].credit=parseFloat(inputs[1]?.value)||0;
+    }
+  });
+  if(!date){alert('Please enter a date.');return;}
+  if(!desc){alert('Please enter a description.');return;}
+  const validLines=jeLines.filter(l=>l.acc&&(l.debit>0||l.credit>0));
+  if(validLines.length<2){alert('Please add at least 2 lines with amounts.');return;}
+  const td=validLines.reduce((s,l)=>s+(l.debit||0),0);
+  const tc=validLines.reduce((s,l)=>s+(l.credit||0),0);
+  if(Math.abs(td-tc)>0.01){
+    if(!confirm(`⚠️ This entry is NOT balanced!\nDebit: ${fmtUSD(td)}\nCredit: ${fmtUSD(tc)}\nDifference: ${fmtUSD(Math.abs(td-tc))}\n\nSave anyway?`)) return;
+  }
+  if(editingJE){
+    const idx=journalEntries.findIndex(e=>e.id===editingJE);
+    if(idx>=0){journalEntries[idx]={...journalEntries[idx],date,desc,lines:validLines};}
+  } else {
+    const maxNum=journalEntries.reduce((m,e)=>Math.max(m,parseInt(e.number.replace('JE-',''))||0),0);
+    const num='JE-'+String(maxNum+1).padStart(3,'0');
+    journalEntries.push({id:num,number:num,date,desc,lines:validLines});
+  }
+  save();closeModal();renderJEList();
+}
+function deleteJE(id){
+  if(!confirm('Delete this journal entry? This cannot be undone.')) return;
+  journalEntries=journalEntries.filter(e=>e.id!==id);
+  save();renderJEList();
+}
+
+// ============================================================
+// CHART OF ACCOUNTS
+// ============================================================
+function renderCOA(){
+  document.getElementById('content').innerHTML=`
+<div class="flex items-center gap-2 mb-4">
+  <button class="btn btn-primary" onclick="openNewAccount()">➕ New Account</button>
+  <span class="badge badge-gray">${accounts.length} accounts total</span>
+</div>
+<div class="card">
+  <div class="card-header">
+    <div class="card-title">🌳 Chart of Accounts</div>
+    <div class="flex gap-2">
+      ${Object.entries(ACCOUNT_TYPES).map(([t,c])=>`<span class="badge" style="background:${c.bg};color:${c.color}">${t}</span>`).join('')}
+    </div>
+  </div>
+  <div class="card-body" style="padding:8px 0">
+    <div style="display:grid;grid-template-columns:1fr auto auto;gap:8px;padding:8px 16px;font-size:11px;font-weight:700;color:#64748b;border-bottom:1px solid var(--border)">
+      <span>Account</span><span style="text-align:right;min-width:120px">Balance</span><span>Actions</span>
+    </div>
+    ${renderAccountTree(null,0)}
+  </div>
+</div>`;
+}
+function renderAccountTree(parentId,depth){
+  const kids=accounts.filter(a=>a.parent===parentId).sort((a,b)=>a.code.localeCompare(b.code));
+  if(!kids.length) return '';
+  return kids.map(acc=>{
+    const hasKids=accounts.some(a=>a.parent===acc.id);
+    const bal=getAccountBalance(acc.id,null,null);
+    const t=ACCOUNT_TYPES[acc.type]||{color:'#64748b',bg:'#f1f5f9'};
+    const exp=expandedAccounts.has(acc.id);
+    return `<div>
+      <div class="acc-row" style="padding-left:${16+depth*20}px">
+        ${hasKids?`<span class="acc-expand" onclick="toggleAccExpand('${acc.id}')">${exp?'▼':'▶'}</span>`:'<span style="min-width:16px;display:inline-block"></span>'}
+        ${acc.is_header?`<span style="font-size:13px">📁</span>`:`<span style="font-size:13px">📄</span>`}
+        <span style="font-family:monospace;font-size:12px;color:#94a3b8;min-width:60px">${acc.code}</span>
+        <span class="${acc.is_header?'font-bold':''}" style="flex:1">${acc.name}</span>
+        <span class="badge" style="background:${t.bg};color:${t.color};margin-right:8px;font-size:10px">${acc.type}</span>
+        <span style="font-family:monospace;font-size:13px;min-width:120px;text-align:right;color:${bal>=0?'#10b981':'#ef4444'}">${fmtUSD(bal)}</span>
+        <span style="min-width:80px;text-align:right">
+          <button class="btn btn-xs btn-danger" onclick="deleteAccount('${acc.id}')" title="Delete">🗑</button>
+        </span>
+      </div>
+      ${exp&&hasKids?`<div>${renderAccountTree(acc.id,depth+1)}</div>`:''}
+    </div>`;
+  }).join('');
+}
+function toggleAccExpand(id){
+  if(expandedAccounts.has(id)) expandedAccounts.delete(id); else expandedAccounts.add(id);
+  renderCOA();
+}
+function openNewAccount(){
+  const parentOpts=accounts.map(a=>`<option value="${a.id}">${a.code} — ${a.name.split('/')[0].trim()}</option>`).join('');
+  openModal('➕ New Account',`
+<div class="form-group"><label>Account Code</label><input type="text" id="acc-code" placeholder="e.g. 1111"></div>
+<div class="form-group"><label>Account Name (Arabic / English)</label><input type="text" id="acc-name" placeholder="e.g. حساب جديد / New Account"></div>
+<div class="form-group"><label>Account Type</label>
+  <select id="acc-type">${Object.keys(ACCOUNT_TYPES).map(t=>`<option value="${t}">${t}</option>`).join('')}</select>
+</div>
+<div class="form-group"><label>Parent Account (optional)</label>
+  <select id="acc-parent"><option value="">— No Parent (Root) —</option>${parentOpts}</select>
+</div>
+<div class="form-group"><label><input type="checkbox" id="acc-header"> Header account (no direct transactions)</label></div>
+`,`<button class="btn btn-outline" onclick="closeModal()">Cancel</button>
+   <button class="btn btn-primary" onclick="saveNewAccount()">Save Account</button>`);
+}
+function saveNewAccount(){
+  const code=document.getElementById('acc-code').value.trim();
+  const name=document.getElementById('acc-name').value.trim();
+  const type=document.getElementById('acc-type').value;
+  const parent=document.getElementById('acc-parent').value||null;
+  const isHeader=document.getElementById('acc-header').checked;
+  if(!code||!name){alert('Code and name are required.');return;}
+  if(accounts.find(a=>a.code===code)){alert('Account code already exists.');return;}
+  const id='acc-'+Date.now();
+  accounts.push({id,code,name,type,parent,is_header:isHeader});
+  save();closeModal();renderCOA();
+}
+function deleteAccount(id){
+  const hasLines=journalEntries.some(je=>je.lines.some(l=>l.acc===id));
+  if(hasLines){alert('Cannot delete: this account has journal entry lines.');return;}
+  if(!confirm('Delete this account?')) return;
+  accounts=accounts.filter(a=>a.id!==id);
+  save();renderCOA();
+}
+
+// ============================================================
+// TRIAL BALANCE
+// ============================================================
+function renderTrialBalance(){
+  const now=new Date();
+  const defSd=now.getFullYear()+'-01-01';
+  const defEd=now.toISOString().split('T')[0];
+  document.getElementById('content').innerHTML=`
+<div class="filter-bar mb-4">
+  <div class="form-group"><label>Start Date</label><input type="date" id="tb-sd" value="${defSd}"></div>
+  <div class="form-group"><label>End Date</label><input type="date" id="tb-ed" value="${defEd}"></div>
+  <button class="btn btn-primary" onclick="buildTrialBalance()">Apply Filter</button>
+  <button class="btn btn-outline" onclick="document.getElementById('tb-sd').value='';document.getElementById('tb-ed').value='';buildTrialBalance()">All Time</button>
+</div>
+<div id="tb-content"></div>`;
+  buildTrialBalance();
+}
+function buildTrialBalance(){
+  const sd=document.getElementById('tb-sd')?.value||'';
+  const ed=document.getElementById('tb-ed')?.value||'';
+  const leafAccounts=accounts.filter(a=>!a.is_header);
+  let totalD=0,totalC=0;
+  const rows=leafAccounts.map(acc=>{
+    const {debit,credit}=getAccountTotals(acc.id,sd||null,ed||null);
+    totalD+=debit; totalC+=credit;
+    return {acc,debit,credit};
+  }).filter(r=>r.debit>0||r.credit>0).sort((a,b)=>a.acc.code.localeCompare(b.acc.code));
+  const diff=Math.abs(totalD-totalC);
+  const balanced=diff<0.01;
+  document.getElementById('tb-content').innerHTML=`
+<div class="balance-bar ${balanced?'balance-ok':'balance-err'} mb-4">
+  ${balanced?'✅ BALANCED — Total Debits = Total Credits = '+fmtUSD(totalD):'❌ NOT BALANCED — Difference: '+fmtUSD(diff)+' | Debits: '+fmtUSD(totalD)+' | Credits: '+fmtUSD(totalC)}
+</div>
+<div class="card">
+  <div class="card-header"><div class="card-title">⚖️ Trial Balance</div><span class="text-muted text-sm">${sd?sd+' to '+ed:'All Time'}</span></div>
+  <div class="card-body" style="padding:0">
+    <div class="table-wrap">
+    <table><thead><tr><th>Code</th><th>Account Name</th><th>Type</th><th class="text-right">Debit</th><th class="text-right">Credit</th><th class="text-right">Balance</th></tr></thead>
+    <tbody>
+    ${rows.map(({acc,debit,credit})=>{
+      const t=ACCOUNT_TYPES[acc.type]||{color:'#64748b',bg:'#f1f5f9'};
+      const normalDebit=t.normal==='debit';
+      const closing=normalDebit?debit-credit:credit-debit;
+      return `<tr>
+        <td style="font-family:monospace;color:#64748b">${acc.code}</td>
+        <td>${acc.name}</td>
+        <td><span class="badge" style="background:${t.bg};color:${t.color}">${acc.type}</span></td>
+        <td class="text-right" style="font-family:monospace;color:#10b981">${debit>0?fmtUSD(debit):'-'}</td>
+        <td class="text-right" style="font-family:monospace;color:#3b82f6">${credit>0?fmtUSD(credit):'-'}</td>
+        <td class="text-right" style="font-family:monospace;color:${closing>=0?'#10b981':'#ef4444'}">${fmtUSD(closing)}</td>
+      </tr>`;
+    }).join('')}
+    <tr class="totals-row">
+      <td colspan="3"><strong>GRAND TOTALS</strong></td>
+      <td class="text-right" style="color:#10b981;font-family:monospace"><strong>${fmtUSD(totalD)}</strong></td>
+      <td class="text-right" style="color:#3b82f6;font-family:monospace"><strong>${fmtUSD(totalC)}</strong></td>
+      <td class="text-right"><span class="badge ${balanced?'badge-success':'badge-danger'}">${balanced?'✓ Balanced':'✗ Diff: '+fmtUSD(diff)}</span></td>
+    </tr>
+    </tbody></table>
+    </div>
+  </div>
+</div>`;
+}
+
+// ============================================================
+// INCOME STATEMENT
+// ============================================================
+function renderIncomeStmt(){
+  const now=new Date();
+  document.getElementById('content').innerHTML=`
+<div class="filter-bar mb-4">
+  <div class="form-group"><label>Start Date</label><input type="date" id="is-sd" value="${now.getFullYear()+'-01-01'}"></div>
+  <div class="form-group"><label>End Date</label><input type="date" id="is-ed" value="${now.toISOString().split('T')[0]}"></div>
+  <button class="btn btn-primary" onclick="buildIncomeStmt()">Apply Filter</button>
+</div>
+<div id="is-content"></div>`;
+  buildIncomeStmt();
+}
+function buildIncomeStmt(){
+  const sd=document.getElementById('is-sd')?.value;
+  const ed=document.getElementById('is-ed')?.value;
+  const revAccounts=accounts.filter(a=>a.type==='Revenue'&&!a.is_header);
+  const expAccounts=accounts.filter(a=>a.type==='Expense'&&!a.is_header);
+  const revenues=revAccounts.map(a=>({...a,bal:getAccountBalance(a.id,sd,ed)})).filter(a=>a.bal!==0);
+  const expenses=expAccounts.map(a=>({...a,bal:getAccountBalance(a.id,sd,ed)})).filter(a=>a.bal!==0);
+  const totalRev=revenues.reduce((s,a)=>s+a.bal,0);
+  const totalExp=expenses.reduce((s,a)=>s+a.bal,0);
+  const netIncome=totalRev-totalExp;
+  document.getElementById('is-content').innerHTML=`
+<div class="card" style="max-width:700px">
+  <div class="card-header">
+    <div><div class="card-title">📈 Income Statement</div><div class="text-xs text-muted">${sd} to ${ed}</div></div>
+    <span class="badge ${netIncome>=0?'badge-success':'badge-danger'} text-sm">${netIncome>=0?'Net Income':'Net Loss'}: ${fmtUSD(netIncome)}</span>
+  </div>
+  <div class="card-body">
+    <div class="report-section">
+      <div class="report-section-header">Revenue / الإيرادات</div>
+      ${revenues.map(a=>`<div class="report-row"><span>${a.name}</span><span class="amount pos">${fmtUSD(a.bal)}</span></div>`).join('')||'<div class="report-row text-muted">No revenue entries</div>'}
+      <div class="report-subtotal"><span>Total Revenue</span><span class="amount pos">${fmtUSD(totalRev)}</span></div>
+    </div>
+    <div class="report-section">
+      <div class="report-section-header">Expenses / المصروفات</div>
+      ${expenses.map(a=>`<div class="report-row"><span>${a.name}</span><span class="amount neg">(${fmtUSD(a.bal)})</span></div>`).join('')||'<div class="report-row text-muted">No expense entries</div>'}
+      <div class="report-subtotal"><span>Total Expenses</span><span class="amount neg">(${fmtUSD(totalExp)})</span></div>
+    </div>
+    <div class="report-total">
+      <span>${netIncome>=0?'NET INCOME / صافي الربح':'NET LOSS / صافي الخسارة'}</span>
+      <span class="amount ${netIncome>=0?'pos':'neg'}">${netIncome>=0?fmtUSD(netIncome):'('+fmtUSD(Math.abs(netIncome))+')'}</span>
+    </div>
+  </div>
+</div>`;
+}
+
+// ============================================================
+// BALANCE SHEET
+// ============================================================
+function renderBalanceSheet(){
+  document.getElementById('content').innerHTML=`
+<div class="filter-bar mb-4">
+  <div class="form-group"><label>As of Date</label><input type="date" id="bs-ed" value="${new Date().toISOString().split('T')[0]}"></div>
+  <button class="btn btn-primary" onclick="buildBalanceSheet()">Apply</button>
+</div>
+<div id="bs-content"></div>`;
+  buildBalanceSheet();
+}
+function buildBalanceSheet(){
+  const ed=document.getElementById('bs-ed')?.value;
+  // Assets
+  const assetLeafs=accounts.filter(a=>a.type==='Asset'&&!a.is_header);
+  const assets=assetLeafs.map(a=>({...a,bal:getAccountBalance(a.id,null,ed)})).filter(a=>a.bal!==0);
+  const totalAssets=assets.reduce((s,a)=>s+a.bal,0);
+  // Liabilities
+  const liabLeafs=accounts.filter(a=>a.type==='Liability'&&!a.is_header);
+  const liabilities=liabLeafs.map(a=>({...a,bal:getAccountBalance(a.id,null,ed)})).filter(a=>a.bal!==0);
+  const totalLiab=liabilities.reduce((s,a)=>s+a.bal,0);
+  // Equity
+  const equLeafs=accounts.filter(a=>a.type==='Equity'&&!a.is_header);
+  const equity=equLeafs.map(a=>({...a,bal:getAccountBalance(a.id,null,ed)})).filter(a=>a.bal!==0);
+  const totalEquity=equity.reduce((s,a)=>s+a.bal,0);
+  // Net Income (all time to date)
+  const totalRev=accounts.filter(a=>a.type==='Revenue'&&!a.is_header).reduce((s,a)=>s+getAccountBalance(a.id,null,ed),0);
+  const totalExp=accounts.filter(a=>a.type==='Expense'&&!a.is_header).reduce((s,a)=>s+getAccountBalance(a.id,null,ed),0);
+  const netIncome=totalRev-totalExp;
+  const totalLE=totalLiab+totalEquity+netIncome;
+  const diff=Math.abs(totalAssets-totalLE);
+  const balanced=diff<0.5;
+  document.getElementById('bs-content').innerHTML=`
+<div class="grid-2" style="align-items:start">
+  <div class="card">
+    <div class="card-header"><div class="card-title">💰 Assets / الاصول</div></div>
+    <div class="card-body">
+      <div class="report-section">
+        <div class="report-section-header">Assets</div>
+        ${assets.map(a=>`<div class="report-row"><span style="font-size:13px">${a.name}</span><span class="amount ${a.bal>=0?'pos':'neg'}">${fmtUSD(a.bal)}</span></div>`).join('')}
+      </div>
+      <div class="report-total"><span>TOTAL ASSETS</span><span class="amount pos">${fmtUSD(totalAssets)}</span></div>
+    </div>
+  </div>
+  <div>
+    <div class="card mb-4">
+      <div class="card-header"><div class="card-title">📌 Liabilities / الخصوم</div></div>
+      <div class="card-body">
+        ${liabilities.map(a=>`<div class="report-row"><span style="font-size:13px">${a.name}</span><span class="amount">${fmtUSD(a.bal)}</span></div>`).join('')||'<div class="text-muted text-sm">None</div>'}
+        <div class="report-subtotal"><span>Total Liabilities</span><span class="amount">${fmtUSD(totalLiab)}</span></div>
+      </div>
+    </div>
+    <div class="card mb-4">
+      <div class="card-header"><div class="card-title">🏛 Equity / حقوق الملكية</div></div>
+      <div class="card-body">
+        ${equity.map(a=>`<div class="report-row"><span style="font-size:13px">${a.name}</span><span class="amount">${fmtUSD(a.bal)}</span></div>`).join('') }
+        <div class="report-row"><span>Net Income (YTD)</span><span class="amount ${netIncome>=0?'pos':'neg'}">${fmtUSD(netIncome)}</span></div>
+        <div class="report-subtotal"><span>Total Equity</span><span class="amount">${fmtUSD(totalEquity+netIncome)}</span></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-body">
+        <div class="report-total"><span>TOTAL L + EQUITY</span><span class="amount">${fmtUSD(totalLE)}</span></div>
+        <div class="alert ${balanced?'alert-success':'alert-warning'} mt-4">
+          ${balanced?'✅ Accounting Equation Balanced: Assets = Liabilities + Equity':'⚠️ Equation Difference: '+fmtUSD(diff)}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>`;
+}
+
+// ============================================================
+// CASH FLOW
+// ============================================================
+function renderCashFlow(){
+  const now=new Date();
+  document.getElementById('content').innerHTML=`
+<div class="filter-bar mb-4">
+  <div class="form-group"><label>Start Date</label><input type="date" id="cf-sd" value="${now.getFullYear()+'-01-01'}"></div>
+  <div class="form-group"><label>End Date</label><input type="date" id="cf-ed" value="${now.toISOString().split('T')[0]}"></div>
+  <button class="btn btn-primary" onclick="buildCashFlow()">Apply</button>
+</div>
+<div id="cf-content"></div>`;
+  buildCashFlow();
+}
+function buildCashFlow(){
+  const sd=document.getElementById('cf-sd')?.value;
+  const ed=document.getElementById('cf-ed')?.value;
+  // Operating = Revenue - Expenses (net income)
+  const totalRev=accounts.filter(a=>a.type==='Revenue'&&!a.is_header).reduce((s,a)=>s+getAccountBalance(a.id,sd,ed),0);
+  const totalExp=accounts.filter(a=>a.type==='Expense'&&!a.is_header).reduce((s,a)=>s+getAccountBalance(a.id,sd,ed),0);
+  const operating=totalRev-totalExp;
+  // Investing = changes in fixed assets
+  const fixedAssets=accounts.filter(a=>a.type==='Asset'&&!a.is_header&&a.parent==='1050');
+  const investing=-fixedAssets.reduce((s,a)=>s+getAccountBalance(a.id,sd,ed),0);
+  // Financing = changes in equity + loans
+  const equityChange=accounts.filter(a=>a.type==='Equity'&&!a.is_header).reduce((s,a)=>s+getAccountBalance(a.id,sd,ed),0);
+  const loanChange=accounts.filter(a=>a.type==='Liability'&&!a.is_header).reduce((s,a)=>s+getAccountBalance(a.id,sd,ed),0);
+  const financing=equityChange+loanChange;
+  const netChange=operating+investing+financing;
+  document.getElementById('cf-content').innerHTML=`
+<div class="card" style="max-width:700px">
+  <div class="card-header">
+    <div><div class="card-title">💧 Cash Flow Statement</div><div class="text-xs text-muted">${sd} to ${ed}</div></div>
+  </div>
+  <div class="card-body">
+    <div class="report-section">
+      <div class="report-section-header">Operating Activities / الأنشطة التشغيلية</div>
+      <div class="report-row"><span>Net Revenue</span><span class="amount pos">${fmtUSD(totalRev)}</span></div>
+      <div class="report-row"><span>Total Expenses</span><span class="amount neg">(${fmtUSD(totalExp)})</span></div>
+      <div class="report-subtotal"><span>Net Cash from Operations</span><span class="amount ${operating>=0?'pos':'neg'}">${operating>=0?fmtUSD(operating):'('+fmtUSD(Math.abs(operating))+')'}</span></div>
+    </div>
+    <div class="report-section">
+      <div class="report-section-header">Investing Activities / الأنشطة الاستثمارية</div>
+      ${fixedAssets.map(a=>{const b=getAccountBalance(a.id,sd,ed);return b?`<div class="report-row"><span>${a.name}</span><span class="amount neg">(${fmtUSD(b)})</span></div>`:''}).join('')||'<div class="report-row text-muted">No investing activities</div>'}
+      <div class="report-subtotal"><span>Net Cash from Investing</span><span class="amount ${investing>=0?'pos':'neg'}">${investing>=0?fmtUSD(investing):'('+fmtUSD(Math.abs(investing))+')'}</span></div>
+    </div>
+    <div class="report-section">
+      <div class="report-section-header">Financing Activities / الأنشطة التمويلية</div>
+      <div class="report-row"><span>Equity Changes</span><span class="amount">${fmtUSD(equityChange)}</span></div>
+      <div class="report-row"><span>Loan Changes</span><span class="amount">${fmtUSD(loanChange)}</span></div>
+      <div class="report-subtotal"><span>Net Cash from Financing</span><span class="amount ${financing>=0?'pos':'neg'}">${financing>=0?fmtUSD(financing):'('+fmtUSD(Math.abs(financing))+')'}</span></div>
+    </div>
+    <div class="report-total">
+      <span>NET CHANGE IN CASH</span>
+      <span class="amount ${netChange>=0?'pos':'neg'}">${netChange>=0?fmtUSD(netChange):'('+fmtUSD(Math.abs(netChange))+')'}</span>
+    </div>
+  </div>
+</div>`;
+}
+
+// ============================================================
+// GENERAL LEDGER
+// ============================================================
+function renderGL(){
+  const leafAccs=accounts.filter(a=>!a.is_header);
+  const accOpts=leafAccs.map(a=>`<option value="${a.id}">${a.code} — ${a.name.split('/')[0].trim()}</option>`).join('');
+  const now=new Date();
+  document.getElementById('content').innerHTML=`
+<div class="filter-bar mb-4">
+  <div class="form-group" style="flex:2"><label>Account</label><select id="gl-acc">${accOpts}</select></div>
+  <div class="form-group"><label>Start Date</label><input type="date" id="gl-sd" value="${now.getFullYear()+'-01-01'}"></div>
+  <div class="form-group"><label>End Date</label><input type="date" id="gl-ed" value="${now.toISOString().split('T')[0]}"></div>
+  <button class="btn btn-primary" onclick="buildGL()">View Ledger</button>
+</div>
+<div id="gl-content"></div>`;
+  buildGL();
+}
+function buildGL(){
+  const accId=document.getElementById('gl-acc')?.value;
+  const sd=document.getElementById('gl-sd')?.value;
+  const ed=document.getElementById('gl-ed')?.value;
+  if(!accId) return;
+  const acc=getAccountById(accId);
+  const t=ACCOUNT_TYPES[acc?.type]||{color:'#64748b',bg:'#f1f5f9',normal:'debit'};
+  let running=0;
+  const ledgerRows=[];
+  const filteredJE=journalEntries.filter(je=>{
+    if(sd && je.date<sd) return false;
+    if(ed && je.date>ed) return false;
+    return je.lines.some(l=>l.acc===accId);
+  }).sort((a,b)=>a.date.localeCompare(b.date));
+  for(const je of filteredJE){
+    for(const line of je.lines){
+      if(line.acc!==accId) continue;
+      const d=line.debit||0, c=line.credit||0;
+      running += t.normal==='debit' ? d-c : c-d;
+      ledgerRows.push({date:je.date,num:je.number,desc:je.desc,debit:d,credit:c,running});
+    }
+  }
+  const totalD=ledgerRows.reduce((s,r)=>s+r.debit,0);
+  const totalC=ledgerRows.reduce((s,r)=>s+r.credit,0);
+  document.getElementById('gl-content').innerHTML=`
+<div class="card">
+  <div class="card-header">
+    <div>
+      <div class="card-title">📖 General Ledger: ${acc?.name||accId}</div>
+      <div class="text-xs text-muted">${acc?.code} | ${sd} to ${ed}</div>
+    </div>
+    <span class="badge" style="background:${t.bg};color:${t.color}">${acc?.type}</span>
+  </div>
+  <div class="card-body" style="padding:0">
+    <div class="table-wrap">
+    <table><thead><tr><th>Date</th><th>Entry #</th><th>Description</th><th class="text-right">Debit</th><th class="text-right">Credit</th><th class="text-right">Balance</th></tr></thead>
+    <tbody>
+    ${ledgerRows.map(r=>`<tr>
+      <td class="text-muted">${r.date}</td>
+      <td><span style="font-family:monospace;color:#1e40af">${r.num}</span></td>
+      <td style="max-width:200px">${r.desc}</td>
+      <td class="text-right" style="color:#10b981;font-family:monospace">${r.debit?fmtUSD(r.debit):'-'}</td>
+      <td class="text-right" style="color:#3b82f6;font-family:monospace">${r.credit?fmtUSD(r.credit):'-'}</td>
+      <td class="text-right" style="font-family:monospace;color:${r.running>=0?'#10b981':'#ef4444'}">${fmtUSD(r.running)}</td>
+    </tr>`).join('')||'<tr><td colspan="6" class="empty">No transactions for this account in the selected period.</td></tr>'}
+    <tr class="totals-row"><td colspan="3"><strong>TOTALS</strong></td><td class="text-right" style="color:#10b981;font-family:monospace"><strong>${fmtUSD(totalD)}</strong></td><td class="text-right" style="color:#3b82f6;font-family:monospace"><strong>${fmtUSD(totalC)}</strong></td><td class="text-right" style="font-family:monospace"><strong>${fmtUSD(running)}</strong></td></tr>
+    </tbody></table>
+    </div>
+  </div>
+</div>`;
+}
+
+// ============================================================
+// PURCHASE ORDERS
+// ============================================================
+function renderPO(){
+  const statusCls={approved:'badge-success',pending:'badge-warning',rejected:'badge-danger'};
+  document.getElementById('content').innerHTML=`
+<div class="flex items-center gap-2 mb-4">
+  <button class="btn btn-primary" onclick="openNewPO()">➕ New Purchase Order</button>
+  <span class="badge badge-gray ml-auto">${purchaseOrders.length} orders total</span>
+</div>
+<div class="card">
+  <div class="card-body" style="padding:0">
+    <div class="table-wrap">
+    <table><thead><tr><th>PO #</th><th>Date</th><th>Vendor</th><th>Description</th><th class="text-right">Amount</th><th>Approval 1</th><th>Approval 2</th><th>Supply</th><th>Status</th><th>Actions</th></tr></thead>
+    <tbody>
+    ${purchaseOrders.map(po=>`<tr>
+      <td><span style="font-family:monospace;color:#1e40af;font-weight:700">${po.number}</span></td>
+      <td class="text-muted">${po.date}</td>
+      <td>${po.vendor}</td>
+      <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${po.desc}</td>
+      <td class="text-right" style="font-family:monospace;font-weight:700">${fmtUSD(po.amount)}</td>
+      <td><span class="badge ${po.approval1?'badge-success':'badge-warning'}">${po.approval1?'✓':'⏳'}</span></td>
+      <td><span class="badge ${po.approval2?'badge-success':'badge-warning'}">${po.approval2?'✓':'⏳'}</span></td>
+      <td><span class="badge ${po.supply?'badge-success':'badge-gray'}">${po.supply?'Done':'Pending'}</span></td>
+      <td><span class="badge ${statusCls[po.status]||'badge-gray'}">${po.status}</span></td>
+      <td>
+        <div class="flex gap-2">
+          ${!po.approval1&&po.status==='pending'?`<button class="btn btn-xs btn-success" onclick="approvePO('${po.id}',1)">✓ Appr 1</button>`:''}
+          ${po.approval1&&!po.approval2&&po.status==='pending'?`<button class="btn btn-xs btn-success" onclick="approvePO('${po.id}',2)">✓ Appr 2</button>`:''}
+          ${po.status==='approved'&&!po.supply?`<button class="btn btn-xs btn-primary" onclick="markSupply('${po.id}')">📦 Supply</button>`:''}
+          ${po.status==='pending'?`<button class="btn btn-xs btn-danger" onclick="rejectPO('${po.id}')">✗ Reject</button>`:''}
+          <button class="btn btn-xs btn-danger" onclick="deletePO('${po.id}')">🗑</button>
+        </div>
+      </td>
+    </tr>`).join('')}
+    </tbody></table>
+    </div>
+  </div>
+</div>`;
+}
+function openNewPO(){
+  openModal('🛒 New Purchase Order',`
+<div class="form-group"><label>PO Number</label><input type="text" id="po-num" value="PO-00${purchaseOrders.length+1}"></div>
+<div class="form-group"><label>Date</label><input type="date" id="po-date" value="${new Date().toISOString().split('T')[0]}"></div>
+<div class="form-group"><label>Vendor Name</label><input type="text" id="po-vendor" placeholder="Vendor / Supplier name"></div>
+<div class="form-group"><label>Description</label><input type="text" id="po-desc" placeholder="What is being purchased?"></div>
+<div class="form-group"><label>Amount ($)</label><input type="number" id="po-amount" placeholder="0.00" step="0.01"></div>
+`,`<button class="btn btn-outline" onclick="closeModal()">Cancel</button>
+   <button class="btn btn-primary" onclick="savePO()">Save PO</button>`);
+}
+function savePO(){
+  const num=document.getElementById('po-num').value.trim();
+  const date=document.getElementById('po-date').value;
+  const vendor=document.getElementById('po-vendor').value.trim();
+  const desc=document.getElementById('po-desc').value.trim();
+  const amount=parseFloat(document.getElementById('po-amount').value)||0;
+  if(!num||!vendor||!desc||!amount){alert('All fields are required.');return;}
+  purchaseOrders.push({id:num,number:num,date,vendor,desc,amount,status:'pending',approval1:false,approval2:false,supply:false});
+  save();closeModal();renderPO();
+}
+function approvePO(id,level){
+  const po=purchaseOrders.find(p=>p.id===id);if(!po)return;
+  if(level===1) po.approval1=true;
+  if(level===2){po.approval2=true;if(po.approval1)po.status='approved';}
+  save();renderPO();
+}
+function rejectPO(id){
+  const reason=prompt('Rejection reason:');if(!reason)return;
+  const po=purchaseOrders.find(p=>p.id===id);if(!po)return;
+  po.status='rejected';po.rejectionReason=reason;save();renderPO();
+}
+function markSupply(id){
+  const po=purchaseOrders.find(p=>p.id===id);if(!po)return;
+  po.supply=true;save();renderPO();
+}
+function deletePO(id){
+  if(!confirm('Delete this PO?'))return;
+  purchaseOrders=purchaseOrders.filter(p=>p.id!==id);save();renderPO();
+}
+
+// ============================================================
+// MODAL
+// ============================================================
+function openModal(title,body,footer){
+  document.getElementById('modal-title').textContent=title;
+  document.getElementById('modal-body').innerHTML=body;
+  document.getElementById('modal-footer').innerHTML=footer||'';
+  document.getElementById('modal-overlay').style.display='flex';
+}
+function closeModal(){document.getElementById('modal-overlay').style.display='none';}
+
+// ============================================================
+// INIT
+// ============================================================
+document.addEventListener('DOMContentLoaded',()=>{
+  document.getElementById('current-date').textContent = new Date().toLocaleDateString('en-US',{weekday:'short',year:'numeric',month:'short',day:'numeric'});
+  navigate('dashboard');
+});
+</script>
+</body>
+</html>

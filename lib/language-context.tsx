@@ -126,7 +126,44 @@ const translations: Record<Language, Record<string, string>> = {
     "coa.deleteConfirm": "Are you sure you want to delete this account?",
     "coa.invalidAccountType": "Invalid Account Type",
     "coa.selectAccountType": "Please select an account type.",
-    
+    "coa.operatingActivities": "Operating Activities",
+    "coa.investingActivities": "Investing Activities",
+    "coa.financingActivities": "Financing Activities",
+    "coa.noneCashFlow": "None (No Cash Flow)",
+
+    // Purchase Orders
+    "po.loadingOrders": "Loading purchase orders...",
+    "po.noOrdersFound": "No purchase orders found",
+
+    // Financial Reports extras
+    "fr.accountReports": "Account Reports",
+    "fr.revenueMinusExpenses": "Revenue minus Expenses",
+
+    // General extras
+    "general.cancel": "Cancel",
+    "general.create": "Create",
+    "general.update": "Update",
+    "general.saving": "Saving...",
+    "general.totals": "Totals",
+    "general.header": "Header Account",
+    "general.parent": "Parent Account",
+    "general.system": "System",
+    "general.noAccounts": "No accounts",
+    "general.noneTopLevel": "None (Top Level)",
+    "general.normalBalance": "Normal Balance",
+    "general.optionalDescription": "Optional description",
+    "general.selectParentOptional": "Select parent account (optional)",
+    "general.increasesWithDebits": "Increases with Debits",
+    "general.increasesWithCredits": "Increases with Credits",
+    "general.describeAccountType": "Describe this account type",
+    "general.cashFlowDefault": "Default cash flow category",
+    "general.cashFlowDescription": "Cash flow categorization",
+    "general.defaultCashFlowCategory": "Default Category",
+    "general.defaultCashFlowDescription": "Used when no specific category is set",
+    "general.defaultCategoryDescription": "Default category for new accounts",
+    "general.createSubAccount": "Create Sub-Account",
+    "general.accountTypeName": "Account Type Name",
+
     // General
     "general.success": "Success",
     "general.error": "Error",

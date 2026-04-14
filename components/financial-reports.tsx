@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Table, TableBody, TableCell, TableRow } from "@/components/ui/table"
 import { AccountingService, type CashFlowStatement, type Account } from "@/lib/accounting-utils"
+import { getCurrentUser, canViewAccountingData } from "@/lib/auth-utils"
 import { useToast } from "@/hooks/use-toast"
 import { useLanguage } from "@/lib/language-context"
 
@@ -26,6 +27,20 @@ type BalanceSheetAccount = {
 
 export default function FinancialReports() {
   const { language, t } = useLanguage()
+
+  // ── Permission check ────────────────────────────────────────────────────────
+  const currentUser = getCurrentUser()
+  if (!currentUser || !canViewAccountingData(currentUser)) {
+    return (
+      <div className="flex items-center justify-center h-64 flex-col gap-4">
+        <span className="text-4xl">🔒</span>
+        <p className="text-xl font-semibold text-gray-700">Access Restricted</p>
+        <p className="text-gray-500">You do not have permission to view financial reports.</p>
+      </div>
+    )
+  }
+  // ────────────────────────────────────────────────────────────────────────────
+
   const [balanceSheet, setBalanceSheet] = useState<any>(null)
   const [incomeStatement, setIncomeStatement] = useState<any>(null)
   const [cashFlowStatement, setCashFlowStatement] = useState<CashFlowStatement | null>(null)
@@ -680,6 +695,23 @@ export default function FinancialReports() {
                             <span className="text-purple-700">
                               {formatCurrency(balanceSheet.totalLiabilities + balanceSheet.totalEquity)}
                             </span>
+                          </div>
+                        </div>
+
+                        {/* Accounting Equation Validation */}
+                        <div className={`rounded-lg p-3 mt-4 border ${balanceSheet.isEquationBalanced !== false ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
+                          <div className="flex items-center gap-2 text-sm font-semibold">
+                            {balanceSheet.isEquationBalanced !== false ? (
+                              <>
+                                <span className="text-green-700">✅ Accounting Equation Balanced</span>
+                                <span className="text-green-600 font-normal ml-auto">Assets = Liabilities + Equity ✓</span>
+                              </>
+                            ) : (
+                              <>
+                                <span className="text-red-700">⚠️ Equation Imbalance Detected</span>
+                                <span className="text-red-600 font-normal ml-auto">Difference: {formatCurrency(Math.abs(balanceSheet.equationDifference || 0))}</span>
+                              </>
+                            )}
                           </div>
                         </div>
                       </div>

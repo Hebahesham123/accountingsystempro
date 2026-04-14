@@ -1,0 +1,712 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>نظام المحاسبة المتكامل | Advanced Accounting System</title>
+<style>
+  :root {
+    --primary: #1e40af;
+    --primary-light: #3b82f6;
+    --primary-dark: #1e3a8a;
+    --accent: #0ea5e9;
+    --success: #10b981;
+    --warning: #f59e0b;
+    --danger: #ef4444;
+    --dark: #0f172a;
+    --gray: #64748b;
+    --light: #f8fafc;
+    --white: #ffffff;
+    --border: #e2e8f0;
+    --shadow: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06);
+    --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background: var(--dark); color: var(--white); overflow-x: hidden; }
+
+  /* ===== HERO ===== */
+  .hero {
+    min-height: 100vh;
+    background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 50%, #0f172a 100%);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    text-align: center; padding: 40px 20px; position: relative; overflow: hidden;
+  }
+  .hero::before {
+    content: ''; position: absolute; inset: 0;
+    background: radial-gradient(ellipse at 20% 50%, rgba(59,130,246,0.15) 0%, transparent 60%),
+                radial-gradient(ellipse at 80% 20%, rgba(14,165,233,0.1) 0%, transparent 50%);
+  }
+  .grid-bg {
+    position: absolute; inset: 0; opacity: 0.05;
+    background-image: linear-gradient(rgba(255,255,255,0.3) 1px, transparent 1px),
+                      linear-gradient(90deg, rgba(255,255,255,0.3) 1px, transparent 1px);
+    background-size: 50px 50px;
+  }
+  .hero-content { position: relative; z-index: 1; max-width: 900px; }
+  .badge { display: inline-flex; align-items: center; gap: 8px; background: rgba(59,130,246,0.2); border: 1px solid rgba(59,130,246,0.4); border-radius: 50px; padding: 6px 16px; font-size: 13px; color: #93c5fd; margin-bottom: 24px; }
+  .badge-dot { width: 8px; height: 8px; border-radius: 50%; background: #3b82f6; animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.5;transform:scale(1.2)} }
+  h1 { font-size: clamp(2.5rem, 6vw, 4.5rem); font-weight: 800; line-height: 1.1; margin-bottom: 16px; }
+  h1 span { background: linear-gradient(90deg, #60a5fa, #38bdf8, #34d399); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+  .hero-sub { font-size: 1.2rem; color: #94a3b8; max-width: 600px; margin: 0 auto 40px; line-height: 1.7; }
+  .hero-btns { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; margin-bottom: 60px; }
+  .btn { padding: 14px 32px; border-radius: 10px; font-size: 16px; font-weight: 600; cursor: pointer; border: none; transition: all 0.2s; text-decoration: none; display: inline-flex; align-items: center; gap: 8px; }
+  .btn-primary { background: linear-gradient(135deg, #2563eb, #0ea5e9); color: white; box-shadow: 0 0 30px rgba(37,99,235,0.4); }
+  .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 0 40px rgba(37,99,235,0.6); }
+  .btn-outline { background: transparent; color: white; border: 1px solid rgba(255,255,255,0.3); }
+  .btn-outline:hover { background: rgba(255,255,255,0.1); }
+
+  /* ===== STATS BAR ===== */
+  .stats-bar { display: flex; justify-content: center; gap: 48px; flex-wrap: wrap; padding: 20px 0; border-top: 1px solid rgba(255,255,255,0.1); position: relative; z-index: 1; }
+  .stat { text-align: center; }
+  .stat-num { font-size: 2rem; font-weight: 800; background: linear-gradient(90deg,#60a5fa,#38bdf8); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+  .stat-label { font-size: 13px; color: #64748b; margin-top: 2px; }
+
+  /* ===== SECTION ===== */
+  section { padding: 80px 20px; }
+  .container { max-width: 1200px; margin: 0 auto; }
+  .section-header { text-align: center; margin-bottom: 60px; }
+  .section-tag { display: inline-block; background: rgba(59,130,246,0.15); border: 1px solid rgba(59,130,246,0.3); border-radius: 50px; padding: 4px 14px; font-size: 13px; color: #60a5fa; margin-bottom: 16px; }
+  .section-title { font-size: clamp(1.8rem, 4vw, 2.8rem); font-weight: 800; margin-bottom: 12px; }
+  .section-desc { color: #94a3b8; font-size: 1.1rem; max-width: 600px; margin: 0 auto; }
+
+  /* ===== FEATURES GRID ===== */
+  .features-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 24px; }
+  .feature-card {
+    background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 16px; padding: 28px; transition: all 0.3s; position: relative; overflow: hidden;
+  }
+  .feature-card::before { content:''; position:absolute; inset:0; background:linear-gradient(135deg,rgba(59,130,246,0.05),transparent); opacity:0; transition:0.3s; }
+  .feature-card:hover { border-color: rgba(59,130,246,0.4); transform: translateY(-4px); box-shadow: 0 20px 40px rgba(0,0,0,0.3); }
+  .feature-card:hover::before { opacity:1; }
+  .feat-icon { width: 52px; height: 52px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 24px; margin-bottom: 16px; }
+  .feat-title { font-size: 1.1rem; font-weight: 700; margin-bottom: 8px; }
+  .feat-desc { color: #94a3b8; font-size: 14px; line-height: 1.6; }
+  .feat-tag { display: inline-block; margin-top: 12px; font-size: 12px; padding: 3px 10px; border-radius: 50px; font-weight: 600; }
+
+  /* ===== DASHBOARD MOCKUP ===== */
+  .dashboard-wrapper { background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.08); border-radius: 20px; overflow: hidden; box-shadow: 0 0 80px rgba(37,99,235,0.15); }
+  .dash-topbar { background: rgba(255,255,255,0.05); padding: 14px 24px; display: flex; align-items: center; gap: 12px; border-bottom: 1px solid rgba(255,255,255,0.08); }
+  .dot { width: 12px; height: 12px; border-radius: 50%; }
+  .dot-red{background:#ef4444} .dot-yellow{background:#f59e0b} .dot-green{background:#22c55e}
+  .dash-title { flex: 1; text-align: center; font-size: 13px; color: #64748b; }
+  .dash-body { padding: 24px; background: #0f172a; }
+  .dash-nav { display: flex; gap: 8px; margin-bottom: 24px; flex-wrap: wrap; }
+  .nav-item { padding: 8px 16px; border-radius: 8px; font-size: 13px; cursor: pointer; transition: all 0.2s; border: 1px solid transparent; }
+  .nav-item.active { background: rgba(37,99,235,0.3); border-color: rgba(37,99,235,0.5); color: #60a5fa; }
+  .nav-item:not(.active) { color: #64748b; }
+  .nav-item:not(.active):hover { background: rgba(255,255,255,0.05); color: #94a3b8; }
+  .kpi-row { display: grid; grid-template-columns: repeat(4,1fr); gap: 16px; margin-bottom: 24px; }
+  .kpi { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 20px; }
+  .kpi-label { font-size: 12px; color: #64748b; margin-bottom: 6px; }
+  .kpi-value { font-size: 1.4rem; font-weight: 800; }
+  .kpi-change { font-size: 12px; margin-top: 4px; }
+  .green { color: #22c55e; } .red { color: #ef4444; } .blue { color: #60a5fa; } .yellow { color: #fbbf24; }
+  .dash-charts { display: grid; grid-template-columns: 2fr 1fr; gap: 16px; margin-bottom: 24px; }
+  .chart-box { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 20px; }
+  .chart-title { font-size: 14px; font-weight: 600; margin-bottom: 16px; color: #e2e8f0; }
+  .chart-bars { display: flex; align-items: flex-end; gap: 8px; height: 100px; }
+  .bar { flex: 1; border-radius: 4px 4px 0 0; transition: opacity 0.2s; }
+  .bar:hover { opacity: 0.8; }
+  .donut-wrap { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 120px; }
+  .donut { width: 90px; height: 90px; border-radius: 50%; background: conic-gradient(#3b82f6 0% 40%, #22c55e 40% 65%, #f59e0b 65% 80%, #ef4444 80% 100%); position: relative; }
+  .donut::after { content:''; position:absolute; inset:20px; background:#0f172a; border-radius:50%; }
+  .donut-legend { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 10px; }
+  .legend-item { font-size: 11px; color: #94a3b8; display: flex; align-items: center; gap: 4px; }
+  .legend-dot { width: 8px; height: 8px; border-radius: 50%; }
+  .table-box { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; overflow: hidden; }
+  .table-head { display: grid; grid-template-columns: 2fr 2fr 1fr 1fr 1fr; gap: 8px; padding: 12px 16px; background: rgba(255,255,255,0.05); font-size: 12px; color: #64748b; font-weight: 600; }
+  .table-row { display: grid; grid-template-columns: 2fr 2fr 1fr 1fr 1fr; gap: 8px; padding: 12px 16px; border-top: 1px solid rgba(255,255,255,0.05); font-size: 13px; transition: background 0.15s; }
+  .table-row:hover { background: rgba(255,255,255,0.03); }
+  .status { display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: 50px; font-size: 11px; font-weight: 600; }
+  .status.balanced { background: rgba(34,197,94,0.15); color: #22c55e; }
+  .status.pending { background: rgba(251,191,36,0.15); color: #fbbf24; }
+
+  /* ===== SCREENS SECTION ===== */
+  .screens-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; }
+  .screen-card { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 16px; overflow: hidden; transition: all 0.3s; }
+  .screen-card:hover { transform: translateY(-6px); box-shadow: 0 20px 40px rgba(0,0,0,0.4); border-color: rgba(59,130,246,0.4); }
+  .screen-preview { height: 180px; display: flex; flex-direction: column; padding: 16px; position: relative; overflow: hidden; }
+  .screen-info { padding: 16px 20px 20px; }
+  .screen-name { font-weight: 700; margin-bottom: 4px; }
+  .screen-desc { font-size: 13px; color: #64748b; }
+
+  /* ===== ACCOUNTING RULES ===== */
+  .rules-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; }
+  .rule-card { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 14px; padding: 24px; text-align: center; }
+  .rule-icon { font-size: 2.5rem; margin-bottom: 12px; }
+  .rule-title { font-weight: 700; margin-bottom: 8px; font-size: 1rem; }
+  .rule-desc { font-size: 13px; color: #94a3b8; line-height: 1.6; }
+  .rule-status { display: inline-flex; align-items: center; gap: 6px; margin-top: 12px; font-size: 12px; font-weight: 600; padding: 4px 12px; border-radius: 50px; }
+  .rule-pass { background: rgba(34,197,94,0.15); color: #22c55e; }
+  .rule-warn { background: rgba(251,191,36,0.15); color: #fbbf24; }
+
+  /* ===== IMPROVEMENTS ===== */
+  .improvements-list { display: flex; flex-direction: column; gap: 12px; max-width: 800px; margin: 0 auto; }
+  .improvement { display: flex; align-items: flex-start; gap: 16px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 20px; }
+  .imp-number { min-width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 14px; }
+  .imp-content { flex: 1; }
+  .imp-title { font-weight: 700; margin-bottom: 4px; }
+  .imp-desc { font-size: 14px; color: #94a3b8; line-height: 1.5; }
+  .imp-tags { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+  .imp-tag { font-size: 11px; padding: 2px 8px; border-radius: 50px; border: 1px solid; }
+  .tag-easy { color: #22c55e; border-color: rgba(34,197,94,0.4); background: rgba(34,197,94,0.1); }
+  .tag-medium { color: #fbbf24; border-color: rgba(251,191,36,0.4); background: rgba(251,191,36,0.1); }
+  .tag-hard { color: #f87171; border-color: rgba(248,113,113,0.4); background: rgba(248,113,113,0.1); }
+  .tag-critical { color: #ef4444; border-color: rgba(239,68,68,0.4); background: rgba(239,68,68,0.15); }
+  .tag-high { color: #f97316; border-color: rgba(249,115,22,0.4); background: rgba(249,115,22,0.1); }
+  .tag-medium-p { color: #eab308; border-color: rgba(234,179,8,0.4); background: rgba(234,179,8,0.1); }
+
+  /* ===== TECH STACK ===== */
+  .tech-grid { display: flex; flex-wrap: wrap; justify-content: center; gap: 16px; }
+  .tech-pill { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.12); border-radius: 12px; padding: 14px 24px; display: flex; align-items: center; gap: 10px; font-weight: 600; transition: all 0.2s; }
+  .tech-pill:hover { background: rgba(59,130,246,0.1); border-color: rgba(59,130,246,0.4); transform: translateY(-2px); }
+  .tech-icon { font-size: 20px; }
+
+  /* ===== FOOTER ===== */
+  footer { background: rgba(255,255,255,0.02); border-top: 1px solid rgba(255,255,255,0.08); padding: 40px 20px; text-align: center; }
+  .footer-title { font-size: 1.2rem; font-weight: 700; margin-bottom: 8px; }
+  .footer-sub { color: #64748b; font-size: 14px; }
+
+  /* ===== ANIMATIONS ===== */
+  .fade-in { opacity: 0; transform: translateY(20px); transition: all 0.6s ease; }
+  .fade-in.visible { opacity: 1; transform: translateY(0); }
+  @media(max-width:768px) {
+    .kpi-row { grid-template-columns: repeat(2,1fr); }
+    .dash-charts { grid-template-columns: 1fr; }
+    .table-head, .table-row { grid-template-columns: 2fr 1fr 1fr; }
+    .col-hide { display: none; }
+    .stats-bar { gap: 24px; }
+  }
+  .section-alt { background: rgba(255,255,255,0.01); border-top: 1px solid rgba(255,255,255,0.05); border-bottom: 1px solid rgba(255,255,255,0.05); }
+</style>
+</head>
+<body>
+
+<!-- ===== HERO ===== -->
+<div class="hero">
+  <div class="grid-bg"></div>
+  <div class="hero-content">
+    <div class="badge"><span class="badge-dot"></span> نظام محاسبة متكامل | Full Accounting Platform</div>
+    <h1>Advanced <span>Accounting System</span><br>Built for Modern Business</h1>
+    <p class="hero-sub">A complete double-entry bookkeeping system with journal entries, financial reports, chart of accounts, purchase orders, and real-time balance verification — built on Next.js + Supabase.</p>
+    <div class="hero-btns">
+      <a href="#dashboard" class="btn btn-primary">▶ View Live Demo</a>
+      <a href="#features" class="btn btn-outline">📋 See Features</a>
+      <a href="#improvements" class="btn btn-outline">🚀 Roadmap</a>
+    </div>
+    <div class="stats-bar">
+      <div class="stat"><div class="stat-num">496</div><div class="stat-label">Journal Entries</div></div>
+      <div class="stat"><div class="stat-num">283</div><div class="stat-label">Chart of Accounts</div></div>
+      <div class="stat"><div class="stat-num">$24M+</div><div class="stat-label">Total Transactions</div></div>
+      <div class="stat"><div class="stat-num">5</div><div class="stat-label">Report Types</div></div>
+      <div class="stat"><div class="stat-num">3</div><div class="stat-label">User Roles</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== DASHBOARD MOCKUP ===== -->
+<section id="dashboard">
+  <div class="container">
+    <div class="section-header fade-in">
+      <span class="section-tag">📊 Live Dashboard</span>
+      <h2 class="section-title">Real-Time Financial Overview</h2>
+      <p class="section-desc">Instantly see your business health with KPIs, charts, and recent journal entries.</p>
+    </div>
+    <div class="dashboard-wrapper fade-in">
+      <div class="dash-topbar">
+        <div class="dot dot-red"></div><div class="dot dot-yellow"></div><div class="dot dot-green"></div>
+        <div class="dash-title">🏢 Accounting System — Dashboard</div>
+      </div>
+      <div class="dash-body">
+        <div class="dash-nav">
+          <div class="nav-item active">📊 Dashboard</div>
+          <div class="nav-item">📒 Journal Entries</div>
+          <div class="nav-item">🏦 Chart of Accounts</div>
+          <div class="nav-item">⚖️ Trial Balance</div>
+          <div class="nav-item">📈 Income Statement</div>
+          <div class="nav-item">📋 Balance Sheet</div>
+          <div class="nav-item">💧 Cash Flow</div>
+          <div class="nav-item">🛒 Purchase Orders</div>
+        </div>
+        <div class="kpi-row">
+          <div class="kpi">
+            <div class="kpi-label">💰 Total Assets</div>
+            <div class="kpi-value blue">$7.90M</div>
+            <div class="kpi-change green">▲ 12.3% this month</div>
+          </div>
+          <div class="kpi">
+            <div class="kpi-label">📈 Net Revenue</div>
+            <div class="kpi-value green">$55,400</div>
+            <div class="kpi-change green">▲ 8.1% vs last month</div>
+          </div>
+          <div class="kpi">
+            <div class="kpi-label">💸 Total Expenses</div>
+            <div class="kpi-value yellow">$6.71M</div>
+            <div class="kpi-change red">▲ 3.2% this month</div>
+          </div>
+          <div class="kpi">
+            <div class="kpi-label">✅ Balanced Entries</div>
+            <div class="kpi-value green">496/496</div>
+            <div class="kpi-change green">100% balanced ✓</div>
+          </div>
+        </div>
+        <div class="dash-charts">
+          <div class="chart-box">
+            <div class="chart-title">📊 Monthly Transaction Volume (2026)</div>
+            <div class="chart-bars">
+              <div class="bar green" style="height:45%;background:#3b82f6" title="Jan"></div>
+              <div class="bar" style="height:60%;background:#3b82f6" title="Feb"></div>
+              <div class="bar" style="height:38%;background:#3b82f6" title="Mar"></div>
+              <div class="bar" style="height:75%;background:#60a5fa" title="Apr"></div>
+              <div class="bar" style="height:55%;background:#3b82f6" title="May"></div>
+              <div class="bar" style="height:90%;background:#3b82f6" title="Jun"></div>
+              <div class="bar" style="height:70%;background:#3b82f6" title="Jul"></div>
+              <div class="bar" style="height:82%;background:#3b82f6" title="Aug"></div>
+              <div class="bar" style="height:65%;background:#3b82f6" title="Sep"></div>
+              <div class="bar" style="height:95%;background:#22c55e" title="Oct"></div>
+              <div class="bar" style="height:78%;background:#3b82f6" title="Nov"></div>
+              <div class="bar" style="height:88%;background:#3b82f6" title="Dec"></div>
+            </div>
+            <div style="display:flex;justify-content:space-between;margin-top:8px;font-size:11px;color:#64748b;">
+              <span>Jan</span><span>Feb</span><span>Mar</span><span>Apr</span><span>May</span><span>Jun</span>
+              <span>Jul</span><span>Aug</span><span>Sep</span><span>Oct</span><span>Nov</span><span>Dec</span>
+            </div>
+          </div>
+          <div class="chart-box">
+            <div class="chart-title">🥧 Account Types</div>
+            <div class="donut-wrap">
+              <div class="donut"></div>
+              <div class="donut-legend">
+                <div class="legend-item"><div class="legend-dot" style="background:#3b82f6"></div>Assets 40%</div>
+                <div class="legend-item"><div class="legend-dot" style="background:#22c55e"></div>Liabilities 25%</div>
+                <div class="legend-item"><div class="legend-dot" style="background:#f59e0b"></div>Revenue 15%</div>
+                <div class="legend-item"><div class="legend-dot" style="background:#ef4444"></div>Expenses 20%</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="table-box">
+          <div class="table-head">
+            <span>Entry #</span><span>Description</span><span>Amount</span><span class="col-hide">Date</span><span>Status</span>
+          </div>
+          <div class="table-row">
+            <span style="color:#60a5fa;font-family:monospace">JE-496</span>
+            <span style="color:#e2e8f0">Cash payment received - Project 341</span>
+            <span class="green">$10,505.00</span>
+            <span class="col-hide" style="color:#64748b">Apr 12, 2026</span>
+            <span><div class="status balanced">✓ Balanced</div></span>
+          </div>
+          <div class="table-row">
+            <span style="color:#60a5fa;font-family:monospace">JE-495</span>
+            <span style="color:#e2e8f0">Office supplies expense</span>
+            <span class="green">$2,850.00</span>
+            <span class="col-hide" style="color:#64748b">Apr 11, 2026</span>
+            <span><div class="status balanced">✓ Balanced</div></span>
+          </div>
+          <div class="table-row">
+            <span style="color:#60a5fa;font-family:monospace">JE-494</span>
+            <span style="color:#e2e8f0">Salary & bonus payment - Sodiaq</span>
+            <span class="green">$150,000.00</span>
+            <span class="col-hide" style="color:#64748b">Apr 9, 2026</span>
+            <span><div class="status balanced">✓ Balanced</div></span>
+          </div>
+          <div class="table-row">
+            <span style="color:#60a5fa;font-family:monospace">JE-493</span>
+            <span style="color:#e2e8f0">Electrical works - Patio project</span>
+            <span class="green">$2,320.00</span>
+            <span class="col-hide" style="color:#64748b">Apr 6, 2026</span>
+            <span><div class="status balanced">✓ Balanced</div></span>
+          </div>
+          <div class="table-row">
+            <span style="color:#60a5fa;font-family:monospace">JE-492</span>
+            <span style="color:#e2e8f0">Fixed asset depreciation entry</span>
+            <span class="green">$330,345.00</span>
+            <span class="col-hide" style="color:#64748b">Mar 31, 2026</span>
+            <span><div class="status balanced">✓ Balanced</div></span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== FEATURES ===== -->
+<section id="features" class="section-alt">
+  <div class="container">
+    <div class="section-header fade-in">
+      <span class="section-tag">⚡ Features</span>
+      <h2 class="section-title">Everything You Need</h2>
+      <p class="section-desc">A complete accounting platform with all essential modules and intelligent automation.</p>
+    </div>
+    <div class="features-grid">
+      <div class="feature-card fade-in">
+        <div class="feat-icon" style="background:rgba(59,130,246,0.15)">📒</div>
+        <div class="feat-title">Journal Entries</div>
+        <div class="feat-desc">Full double-entry bookkeeping with real-time debit/credit balance validation. Supports multi-line entries, project tracking, image attachments, and automatic entry numbering.</div>
+        <div class="feat-tag" style="background:rgba(34,197,94,0.15);color:#22c55e">✓ Live Balance Check</div>
+      </div>
+      <div class="feature-card fade-in">
+        <div class="feat-icon" style="background:rgba(16,185,129,0.15)">🌳</div>
+        <div class="feat-title">Hierarchical Chart of Accounts</div>
+        <div class="feat-desc">Multi-level account hierarchy with parent-child relationships. Expandable tree view, real-time balances, search by code or name, and proper aggregate totals through the hierarchy.</div>
+        <div class="feat-tag" style="background:rgba(34,197,94,0.15);color:#22c55e">✓ 283 Accounts</div>
+      </div>
+      <div class="feature-card fade-in">
+        <div class="feat-icon" style="background:rgba(245,158,11,0.15)">⚖️</div>
+        <div class="feat-title">Trial Balance</div>
+        <div class="feat-desc">Real-time trial balance with date filtering, hierarchical and flat view, automatic balance verification, and a "Find Cause" diagnostic tool that pinpoints unbalanced entries instantly.</div>
+        <div class="feat-tag" style="background:rgba(59,130,246,0.15);color:#60a5fa">🔍 Find Cause Tool</div>
+      </div>
+      <div class="feature-card fade-in">
+        <div class="feat-icon" style="background:rgba(139,92,246,0.15)">📈</div>
+        <div class="feat-title">Financial Reports</div>
+        <div class="feat-desc">Full set of financial statements: Income Statement, Balance Sheet, Cash Flow Statement, and General Ledger — all with date range filtering, export to CSV, and bilingual support.</div>
+        <div class="feat-tag" style="background:rgba(139,92,246,0.15);color:#a78bfa">5 Report Types</div>
+      </div>
+      <div class="feature-card fade-in">
+        <div class="feat-icon" style="background:rgba(239,68,68,0.15)">🛒</div>
+        <div class="feat-title">Purchase Order Management</div>
+        <div class="feat-desc">Complete PO workflow: creation, dual approval (Admin + Accountant), rejection with reason, supply confirmation, and automatic integration with journal entries.</div>
+        <div class="feat-tag" style="background:rgba(239,68,68,0.15);color:#f87171">2-Level Approval</div>
+      </div>
+      <div class="feature-card fade-in">
+        <div class="feat-icon" style="background:rgba(14,165,233,0.15)">🔐</div>
+        <div class="feat-title">Role-Based Access Control</div>
+        <div class="feat-desc">Three role levels (Admin, Accountant, User) with granular permissions. PIN-based authentication, session management, rate limiting (10 attempts / 60s lockout), and activity logging.</div>
+        <div class="feat-tag" style="background:rgba(14,165,233,0.15);color:#38bdf8">3 Role Levels</div>
+      </div>
+      <div class="feature-card fade-in">
+        <div class="feat-icon" style="background:rgba(236,72,153,0.15)">🌍</div>
+        <div class="feat-title">Bilingual (EN / AR)</div>
+        <div class="feat-desc">Full bilingual support for English and Arabic throughout the entire application — all labels, buttons, reports, error messages, and financial terms are fully translated.</div>
+        <div class="feat-tag" style="background:rgba(236,72,153,0.15);color:#f472b6">عربي / English</div>
+      </div>
+      <div class="feature-card fade-in">
+        <div class="feat-icon" style="background:rgba(34,197,94,0.15)">🔧</div>
+        <div class="feat-title">Data Integrity Tools</div>
+        <div class="feat-desc">Built-in "Repair Balance Flags" button syncs is_balanced headers with actual line data. Console warnings for missing accounts. Automatic detection and recovery from stale header values.</div>
+        <div class="feat-tag" style="background:rgba(34,197,94,0.15);color:#22c55e">Auto-Repair</div>
+      </div>
+      <div class="feature-card fade-in">
+        <div class="feat-icon" style="background:rgba(251,191,36,0.15)">📊</div>
+        <div class="feat-title">Project-Level Tracking</div>
+        <div class="feat-desc">Assign journal entry lines to specific projects. View project-level profitability, filter financial reports by project, and track costs per project within the same accounting system.</div>
+        <div class="feat-tag" style="background:rgba(251,191,36,0.15);color:#fbbf24">Per-Project P&L</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== ACCOUNTING RULES ===== -->
+<section>
+  <div class="container">
+    <div class="section-header fade-in">
+      <span class="section-tag">📐 Accounting Rules</span>
+      <h2 class="section-title">Compliance Verification</h2>
+      <p class="section-desc">Every accounting principle tested and verified in the system.</p>
+    </div>
+    <div class="rules-grid">
+      <div class="rule-card fade-in">
+        <div class="rule-icon">⚖️</div>
+        <div class="rule-title">Double-Entry Bookkeeping</div>
+        <div class="rule-desc">Every journal entry enforces debit = credit before saving. Real-time validation with live balance indicator on the form.</div>
+        <div class="rule-status rule-pass">✓ Enforced</div>
+      </div>
+      <div class="rule-card fade-in">
+        <div class="rule-icon">🏦</div>
+        <div class="rule-title">Accounting Equation</div>
+        <div class="rule-desc">Assets = Liabilities + Equity. Balance sheet calculates this fundamental equation and displays each component separately.</div>
+        <div class="rule-status rule-warn">⚠ Needs Validation</div>
+      </div>
+      <div class="rule-card fade-in">
+        <div class="rule-icon">📊</div>
+        <div class="rule-title">Debit/Credit Normal Balances</div>
+        <div class="rule-desc">Assets & Expenses are debit-normal; Liabilities, Equity & Revenue are credit-normal. Applied consistently in all reports.</div>
+        <div class="rule-status rule-pass">✓ Implemented</div>
+      </div>
+      <div class="rule-card fade-in">
+        <div class="rule-icon">📅</div>
+        <div class="rule-title">Period Matching</div>
+        <div class="rule-desc">Date-range filtering on all reports ensures revenues and expenses are matched to the correct accounting period.</div>
+        <div class="rule-status rule-pass">✓ Implemented</div>
+      </div>
+      <div class="rule-card fade-in">
+        <div class="rule-icon">🔄</div>
+        <div class="rule-title">Accrual Accounting</div>
+        <div class="rule-desc">Journal entries are recorded when transactions occur, not when cash is exchanged — supporting accrual-basis accounting.</div>
+        <div class="rule-status rule-pass">✓ Supported</div>
+      </div>
+      <div class="rule-card fade-in">
+        <div class="rule-icon">💵</div>
+        <div class="rule-title">Cash Flow Classification</div>
+        <div class="rule-desc">Transactions classified into Operating, Investing, and Financing activities with proper net change calculation.</div>
+        <div class="rule-status rule-warn">⚠ Sign Review</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== SCREENS ===== -->
+<section class="section-alt">
+  <div class="container">
+    <div class="section-header fade-in">
+      <span class="section-tag">🖥 Screens</span>
+      <h2 class="section-title">All Major Pages</h2>
+      <p class="section-desc">A complete suite of accounting screens — each optimized for accountant workflow.</p>
+    </div>
+    <div class="screens-grid">
+      <div class="screen-card fade-in">
+        <div class="screen-preview" style="background:linear-gradient(135deg,#0f172a,#1e3a8a)">
+          <div style="font-size:12px;color:#60a5fa;margin-bottom:8px">📊 Dashboard</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;flex:1">
+            <div style="background:rgba(255,255,255,0.08);border-radius:8px;padding:10px"><div style="font-size:10px;color:#94a3b8">Assets</div><div style="font-size:14px;font-weight:700;color:#60a5fa">$7.9M</div></div>
+            <div style="background:rgba(255,255,255,0.08);border-radius:8px;padding:10px"><div style="font-size:10px;color:#94a3b8">Revenue</div><div style="font-size:14px;font-weight:700;color:#22c55e">$55K</div></div>
+            <div style="background:rgba(255,255,255,0.08);border-radius:8px;padding:10px"><div style="font-size:10px;color:#94a3b8">Expenses</div><div style="font-size:14px;font-weight:700;color:#f59e0b">$6.7M</div></div>
+            <div style="background:rgba(255,255,255,0.08);border-radius:8px;padding:10px"><div style="font-size:10px;color:#94a3b8">Entries</div><div style="font-size:14px;font-weight:700;color:#a78bfa">496</div></div>
+          </div>
+        </div>
+        <div class="screen-info"><div class="screen-name">Dashboard</div><div class="screen-desc">KPIs, charts, and recent entries at a glance</div></div>
+      </div>
+      <div class="screen-card fade-in">
+        <div class="screen-preview" style="background:linear-gradient(135deg,#0f172a,#064e3b)">
+          <div style="font-size:12px;color:#34d399;margin-bottom:8px">📒 Journal Entry Form</div>
+          <div style="background:rgba(255,255,255,0.05);border-radius:8px;padding:10px;font-size:11px">
+            <div style="color:#94a3b8;margin-bottom:6px">Date: Apr 14, 2026</div>
+            <div style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:6px;color:#64748b;font-size:10px;margin-bottom:4px"><span>Account</span><span>Debit</span><span>Credit</span></div>
+            <div style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:6px;font-size:11px;margin-bottom:4px"><span style="color:#e2e8f0">1110 Cash</span><span style="color:#ef4444">—</span><span style="color:#22c55e">$5,000</span></div>
+            <div style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:6px;font-size:11px"><span style="color:#e2e8f0">4100 Revenue</span><span style="color:#60a5fa">$5,000</span><span style="color:#ef4444">—</span></div>
+            <div style="margin-top:8px;padding-top:6px;border-top:1px solid rgba(255,255,255,0.1);color:#22c55e;font-size:11px;font-weight:700">✓ Balanced: $5,000 = $5,000</div>
+          </div>
+        </div>
+        <div class="screen-info"><div class="screen-name">Journal Entry</div><div class="screen-desc">Live debit/credit balance validation</div></div>
+      </div>
+      <div class="screen-card fade-in">
+        <div class="screen-preview" style="background:linear-gradient(135deg,#0f172a,#1e1b4b)">
+          <div style="font-size:12px;color:#a78bfa;margin-bottom:8px">⚖️ Trial Balance</div>
+          <div style="font-size:10px">
+            <div style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:4px;color:#64748b;padding-bottom:4px;border-bottom:1px solid rgba(255,255,255,0.1)"><span>Account</span><span>Debits</span><span>Credits</span></div>
+            <div style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:4px;padding:3px 0;color:#e2e8f0"><span>1110 Cash</span><span style="color:#60a5fa">1.83M</span><span>—</span></div>
+            <div style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:4px;padding:3px 0;color:#e2e8f0"><span>2110 Payables</span><span>—</span><span style="color:#a78bfa">971K</span></div>
+            <div style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:4px;padding:4px 0;border-top:1px solid rgba(255,255,255,0.1);font-weight:700;color:#22c55e"><span>TOTALS</span><span>$22.9M</span><span>$22.9M</span></div>
+            <div style="text-align:right;margin-top:4px"><span style="background:rgba(34,197,94,0.2);color:#22c55e;padding:2px 8px;border-radius:50px;font-size:10px">✓ Balanced</span></div>
+          </div>
+        </div>
+        <div class="screen-info"><div class="screen-name">Trial Balance</div><div class="screen-desc">Date-filtered with built-in Find Cause tool</div></div>
+      </div>
+      <div class="screen-card fade-in">
+        <div class="screen-preview" style="background:linear-gradient(135deg,#0f172a,#7c2d12)">
+          <div style="font-size:12px;color:#fb923c;margin-bottom:8px">📈 Income Statement</div>
+          <div style="font-size:11px">
+            <div style="display:flex;justify-content:space-between;padding:3px 0;color:#94a3b8"><span>Revenue</span><span style="color:#22c55e">$55,400</span></div>
+            <div style="display:flex;justify-content:space-between;padding:3px 0;color:#94a3b8"><span>Cost of Sales</span><span style="color:#ef4444">$(12,600)</span></div>
+            <div style="display:flex;justify-content:space-between;padding:3px 0;color:#e2e8f0;font-weight:600;border-top:1px solid rgba(255,255,255,0.1);margin-top:3px"><span>Gross Profit</span><span style="color:#22c55e">$42,800</span></div>
+            <div style="display:flex;justify-content:space-between;padding:3px 0;color:#94a3b8"><span>Operating Exp.</span><span style="color:#ef4444">$(6.7M)</span></div>
+            <div style="display:flex;justify-content:space-between;padding:4px 0;color:#60a5fa;font-weight:700;border-top:1px solid rgba(255,255,255,0.1);margin-top:3px"><span>Net Income</span><span>$(6.66M)</span></div>
+          </div>
+        </div>
+        <div class="screen-info"><div class="screen-name">Income Statement</div><div class="screen-desc">P&L with revenue, expenses, and net income</div></div>
+      </div>
+      <div class="screen-card fade-in">
+        <div class="screen-preview" style="background:linear-gradient(135deg,#0f172a,#14532d)">
+          <div style="font-size:12px;color:#4ade80;margin-bottom:8px">📋 Balance Sheet</div>
+          <div style="font-size:11px">
+            <div style="color:#64748b;font-size:10px;margin-bottom:4px">ASSETS</div>
+            <div style="display:flex;justify-content:space-between;padding:2px 0;color:#e2e8f0"><span>Fixed Assets</span><span>$1.09M</span></div>
+            <div style="display:flex;justify-content:space-between;padding:2px 0;color:#e2e8f0"><span>Cash</span><span>$1.83M</span></div>
+            <div style="color:#64748b;font-size:10px;margin:4px 0 2px">LIABILITIES + EQUITY</div>
+            <div style="display:flex;justify-content:space-between;padding:2px 0;color:#e2e8f0"><span>Payables</span><span>$971K</span></div>
+            <div style="display:flex;justify-content:space-between;padding:2px 0;color:#e2e8f0"><span>Equity</span><span>$272K</span></div>
+          </div>
+        </div>
+        <div class="screen-info"><div class="screen-name">Balance Sheet</div><div class="screen-desc">Assets = Liabilities + Equity at any date</div></div>
+      </div>
+      <div class="screen-card fade-in">
+        <div class="screen-preview" style="background:linear-gradient(135deg,#0f172a,#1c1917)">
+          <div style="font-size:12px;color:#a8a29e;margin-bottom:8px">🛒 Purchase Orders</div>
+          <div style="font-size:11px">
+            <div style="display:flex;justify-content:space-between;padding:4px 0;color:#e2e8f0;border-bottom:1px solid rgba(255,255,255,0.1)"><span>PO-001 Office Supplies</span><span style="color:#22c55e">Approved ✓</span></div>
+            <div style="display:flex;justify-content:space-between;padding:4px 0;color:#e2e8f0;border-bottom:1px solid rgba(255,255,255,0.1)"><span>PO-002 Equipment</span><span style="color:#fbbf24">Pending ⏳</span></div>
+            <div style="display:flex;justify-content:space-between;padding:4px 0;color:#e2e8f0"><span>PO-003 Materials</span><span style="color:#60a5fa">Review 🔍</span></div>
+            <div style="margin-top:8px;font-size:10px;color:#64748b">2-level approval: Admin + Accountant required</div>
+          </div>
+        </div>
+        <div class="screen-info"><div class="screen-name">Purchase Orders</div><div class="screen-desc">Full PO workflow with 2-level approval</div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== IMPROVEMENTS ===== -->
+<section id="improvements">
+  <div class="container">
+    <div class="section-header fade-in">
+      <span class="section-tag">🚀 Roadmap</span>
+      <h2 class="section-title">Top 10 Improvements</h2>
+      <p class="section-desc">Prioritized recommendations to make the system enterprise-ready.</p>
+    </div>
+    <div class="improvements-list">
+      <div class="improvement fade-in">
+        <div class="imp-number" style="background:rgba(239,68,68,0.2);color:#ef4444">1</div>
+        <div class="imp-content">
+          <div class="imp-title">🔐 Secure PIN Hashing (bcrypt)</div>
+          <div class="imp-desc">User PINs are currently compared in plaintext. Implement bcrypt hashing — if the database is ever exposed, all user credentials would be compromised immediately.</div>
+          <div class="imp-tags"><span class="imp-tag tag-critical">Critical</span><span class="imp-tag tag-easy">Easy</span><span class="imp-tag" style="color:#94a3b8;border-color:rgba(148,163,184,0.4);background:rgba(148,163,184,0.1)">1-2 hours</span></div>
+        </div>
+      </div>
+      <div class="improvement fade-in">
+        <div class="imp-number" style="background:rgba(239,68,68,0.2);color:#ef4444">2</div>
+        <div class="imp-content">
+          <div class="imp-title">🍪 Replace localStorage Auth with Secure Cookies</div>
+          <div class="imp-desc">Session stored in localStorage is vulnerable to XSS attacks. Move to httpOnly, Secure cookies with CSRF token validation to prevent session hijacking.</div>
+          <div class="imp-tags"><span class="imp-tag tag-critical">Critical</span><span class="imp-tag tag-medium">Medium</span><span class="imp-tag" style="color:#94a3b8;border-color:rgba(148,163,184,0.4);background:rgba(148,163,184,0.1)">4-8 hours</span></div>
+        </div>
+      </div>
+      <div class="improvement fade-in">
+        <div class="imp-number" style="background:rgba(249,115,22,0.2);color:#f97316">3</div>
+        <div class="imp-content">
+          <div class="imp-title">📐 Balance Sheet Equation Validation</div>
+          <div class="imp-desc">The system never verifies that Assets = Liabilities + Equity. Add automatic validation with a clear warning banner when this fundamental accounting equation is violated.</div>
+          <div class="imp-tags"><span class="imp-tag tag-high">High</span><span class="imp-tag tag-easy">Easy</span><span class="imp-tag" style="color:#94a3b8;border-color:rgba(148,163,184,0.4);background:rgba(148,163,184,0.1)">2-3 hours</span></div>
+        </div>
+      </div>
+      <div class="improvement fade-in">
+        <div class="imp-number" style="background:rgba(249,115,22,0.2);color:#f97316">4</div>
+        <div class="imp-content">
+          <div class="imp-title">🏦 Opening Balances in Trial Balance</div>
+          <div class="imp-desc">Trial balance currently only shows transaction totals, not opening balances. Add an "Opening Balance" column so the trial balance matches the complete ledger view from getAllAccountBalances.</div>
+          <div class="imp-tags"><span class="imp-tag tag-high">High</span><span class="imp-tag tag-easy">Easy</span><span class="imp-tag" style="color:#94a3b8;border-color:rgba(148,163,184,0.4);background:rgba(148,163,184,0.1)">3-4 hours</span></div>
+        </div>
+      </div>
+      <div class="improvement fade-in">
+        <div class="imp-number" style="background:rgba(249,115,22,0.2);color:#f97316">5</div>
+        <div class="imp-content">
+          <div class="imp-title">📄 Pagination in Journal Entries List</div>
+          <div class="imp-desc">All 496 entries load at once — will become slow with thousands of entries. Implement cursor-based pagination (50 entries/page) with "Load More" or page numbers for fast performance at scale.</div>
+          <div class="imp-tags"><span class="imp-tag tag-high">High</span><span class="imp-tag tag-medium">Medium</span><span class="imp-tag" style="color:#94a3b8;border-color:rgba(148,163,184,0.4);background:rgba(148,163,184,0.1)">6-8 hours</span></div>
+        </div>
+      </div>
+      <div class="improvement fade-in">
+        <div class="imp-number" style="background:rgba(234,179,8,0.2);color:#eab308">6</div>
+        <div class="imp-content">
+          <div class="imp-title">🔄 Database Triggers for is_balanced</div>
+          <div class="imp-desc">The is_balanced flag can drift if lines are modified outside the app. A Postgres trigger on journal_entry_lines would automatically keep the header in sync — eliminating the need for the manual "Repair" button.</div>
+          <div class="imp-tags"><span class="imp-tag tag-medium-p">Medium</span><span class="imp-tag tag-hard">Hard</span><span class="imp-tag" style="color:#94a3b8;border-color:rgba(148,163,184,0.4);background:rgba(148,163,184,0.1)">4-6 hours</span></div>
+        </div>
+      </div>
+      <div class="improvement fade-in">
+        <div class="imp-number" style="background:rgba(234,179,8,0.2);color:#eab308">7</div>
+        <div class="imp-content">
+          <div class="imp-title">💱 Multi-Currency Support</div>
+          <div class="imp-desc">Add currency field to journal entries and accounts. Store amounts in base currency with exchange rates. Enable currency conversion in all financial reports with live exchange rate integration.</div>
+          <div class="imp-tags"><span class="imp-tag tag-medium-p">Medium</span><span class="imp-tag tag-hard">Hard</span><span class="imp-tag" style="color:#94a3b8;border-color:rgba(148,163,184,0.4);background:rgba(148,163,184,0.1)">2-3 weeks</span></div>
+        </div>
+      </div>
+      <div class="improvement fade-in">
+        <div class="imp-number" style="background:rgba(234,179,8,0.2);color:#eab308">8</div>
+        <div class="imp-content">
+          <div class="imp-title">🔒 Supabase Row Level Security (RLS)</div>
+          <div class="imp-desc">Currently, any authenticated user can read all financial data via the anon key. Implement RLS policies so users only see data permitted by their role — essential for multi-company or multi-user deployments.</div>
+          <div class="imp-tags"><span class="imp-tag tag-medium-p">Medium</span><span class="imp-tag tag-hard">Hard</span><span class="imp-tag" style="color:#94a3b8;border-color:rgba(148,163,184,0.4);background:rgba(148,163,184,0.1)">1-2 days</span></div>
+        </div>
+      </div>
+      <div class="improvement fade-in">
+        <div class="imp-number" style="background:rgba(99,102,241,0.2);color:#818cf8">9</div>
+        <div class="imp-content">
+          <div class="imp-title">📊 Budget vs. Actuals Module</div>
+          <div class="imp-desc">Add a budget planning module where managers define monthly/annual budgets per account. The system automatically shows actual vs. budget variance in reports — critical for management decisions.</div>
+          <div class="imp-tags"><span class="imp-tag" style="color:#818cf8;border-color:rgba(129,140,248,0.4);background:rgba(129,140,248,0.1)">Enhancement</span><span class="imp-tag tag-hard">Hard</span><span class="imp-tag" style="color:#94a3b8;border-color:rgba(148,163,184,0.4);background:rgba(148,163,184,0.1)">1-2 weeks</span></div>
+        </div>
+      </div>
+      <div class="improvement fade-in">
+        <div class="imp-number" style="background:rgba(99,102,241,0.2);color:#818cf8">10</div>
+        <div class="imp-content">
+          <div class="imp-title">🏦 Bank Reconciliation Module</div>
+          <div class="imp-desc">Import bank statements (CSV/OFX) and automatically match them against cash account journal entries. Flag discrepancies, show unreconciled items, and generate reconciliation reports for auditors.</div>
+          <div class="imp-tags"><span class="imp-tag" style="color:#818cf8;border-color:rgba(129,140,248,0.4);background:rgba(129,140,248,0.1)">Enhancement</span><span class="imp-tag tag-hard">Hard</span><span class="imp-tag" style="color:#94a3b8;border-color:rgba(148,163,184,0.4);background:rgba(148,163,184,0.1)">2-3 weeks</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== TECH STACK ===== -->
+<section class="section-alt">
+  <div class="container">
+    <div class="section-header fade-in">
+      <span class="section-tag">⚙️ Tech Stack</span>
+      <h2 class="section-title">Built With Modern Technology</h2>
+    </div>
+    <div class="tech-grid">
+      <div class="tech-pill fade-in"><span class="tech-icon">⬛</span>Next.js 16</div>
+      <div class="tech-pill fade-in"><span class="tech-icon">⚛️</span>React 18</div>
+      <div class="tech-pill fade-in"><span class="tech-icon">🟦</span>TypeScript</div>
+      <div class="tech-pill fade-in"><span class="tech-icon">🔵</span>Supabase / PostgreSQL</div>
+      <div class="tech-pill fade-in"><span class="tech-icon">🎨</span>Tailwind CSS 4</div>
+      <div class="tech-pill fade-in"><span class="tech-icon">🧩</span>shadcn/ui + Radix UI</div>
+      <div class="tech-pill fade-in"><span class="tech-icon">🔐</span>Custom Auth (PIN-based)</div>
+      <div class="tech-pill fade-in"><span class="tech-icon">🌍</span>i18n (EN / AR)</div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== FOOTER ===== -->
+<footer>
+  <div class="footer-title">🏢 Advanced Accounting System</div>
+  <div class="footer-sub">Built with Next.js + Supabase | April 2026 | Full audit completed — 36 tests, 72% pass rate</div>
+  <div style="margin-top:16px;display:flex;justify-content:center;gap:24px;flex-wrap:wrap;font-size:13px;color:#475569">
+    <span>📒 496 Journal Entries</span>
+    <span>🏦 283 Accounts</span>
+    <span>$24M+ Transactions</span>
+    <span>✓ Double-Entry Verified</span>
+    <span>🌍 Bilingual EN/AR</span>
+  </div>
+</footer>
+
+<script>
+// Fade in on scroll
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach(e => { if(e.isIntersecting) e.target.classList.add('visible'); });
+}, { threshold: 0.1 });
+document.querySelectorAll('.fade-in').forEach(el => observer.observe(el));
+
+// Interactive nav in dashboard mockup
+document.querySelectorAll('.nav-item').forEach(item => {
+  item.addEventListener('click', () => {
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+    item.classList.add('active');
+  });
+});
+
+// Smooth scroll
+document.querySelectorAll('a[href^="#"]').forEach(a => {
+  a.addEventListener('click', e => {
+    e.preventDefault();
+    const target = document.querySelector(a.getAttribute('href'));
+    if(target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+});
+
+// Animate KPI numbers
+const animateNum = (el, target, prefix='$', suffix='') => {
+  let current = 0;
+  const step = target / 50;
+  const timer = setInterval(() => {
+    current = Math.min(current + step, target);
+    el.textContent = prefix + Math.round(current).toLocaleString() + suffix;
+    if(current >= target) clearInterval(timer);
+  }, 20);
+};
+
+// Counter for stats
+const statObs = new IntersectionObserver((entries) => {
+  entries.forEach(e => {
+    if(e.isIntersecting && !e.target.dataset.animated) {
+      e.target.dataset.animated = true;
+    }
+  });
+}, { threshold: 0.5 });
+document.querySelectorAll('.stat').forEach(el => statObs.observe(el));
+</script>
+</body>
+</html>

@@ -166,6 +166,32 @@ export class AccountingService {
     }
   }
 
+  // ── Circular-reference guard ────────────────────────────────────────────────
+  // Returns true when setting `proposedParentId` as the parent of `accountId`
+  // would create a cycle (e.g. A → B → A).  Walks the existing parent chain of
+  // proposedParentId upward; if it ever reaches accountId (or itself) → cycle.
+  private static async wouldCreateCycle(
+    accountId: string,
+    proposedParentId: string
+  ): Promise<boolean> {
+    if (accountId === proposedParentId) return true   // trivial self-loop
+    let currentId: string | null = proposedParentId
+    const visited = new Set<string>()
+    while (currentId) {
+      if (visited.has(currentId)) return true          // already-existing cycle
+      if (currentId === accountId) return true         // would form a cycle
+      visited.add(currentId)
+      const { data } = await supabase
+        .from("accounts")
+        .select("parent_account_id")
+        .eq("id", currentId)
+        .maybeSingle()
+      currentId = data?.parent_account_id ?? null
+    }
+    return false
+  }
+  // ────────────────────────────────────────────────────────────────────────────
+
   // Create new account type
   static async createAccountType(accountType: {
     name: string
@@ -484,6 +510,17 @@ export class AccountingService {
         throw new Error(`Invalid parent_account_id: ${account.parent_account_id}. Must be a valid UUID.`)
       }
 
+      // Validate account_type_id actually exists in the account_types table
+      const { data: existingType, error: typeCheckError } = await supabase
+        .from("account_types")
+        .select("id")
+        .eq("id", account.account_type_id)
+        .maybeSingle()
+      if (typeCheckError) console.warn("Could not verify account_type_id:", typeCheckError)
+      else if (!existingType) {
+        throw new Error(`account_type_id '${account.account_type_id}' does not exist in account_types table.`)
+      }
+
       let accountCode = account.code
 
       // Generate code if not provided
@@ -609,6 +646,18 @@ export class AccountingService {
     cash_flow_category?: "operating" | "investing" | "financing" | null
   }): Promise<Account> {
     try {
+      // ── Circular-reference guard ─────────────────────────────────────────────
+      if (updates.parent_account_id !== undefined && updates.parent_account_id !== null) {
+        const cycle = await AccountingService.wouldCreateCycle(accountId, updates.parent_account_id)
+        if (cycle) {
+          throw new Error(
+            `Cannot set parent: this would create a circular reference in the account hierarchy. ` +
+            `Account '${accountId}' is already an ancestor of '${updates.parent_account_id}'.`
+          )
+        }
+      }
+      // ────────────────────────────────────────────────────────────────────────
+
       const updateData: any = {
         updated_at: new Date().toISOString(),
       }
@@ -1287,11 +1336,19 @@ export class AccountingService {
           projectId = undefined
         }
         
-        // Limit image_data size to prevent payload issues (max 1MB per image)
+        // Validate and limit image_data (max 1MB; must be a recognised base64 data URI)
         let imageData = line.image_data || null
-        if (imageData && imageData.length > 1048576) { // 1MB in bytes
-          console.warn(`Line ${index + 1} has image data larger than 1MB (${(imageData.length / 1048576).toFixed(2)}MB), truncating...`)
-          imageData = null // Set to null if too large to prevent payload issues
+        if (imageData) {
+          // Validate MIME type — only allow common image formats
+          const allowedMimes = ['data:image/jpeg', 'data:image/jpg', 'data:image/png', 'data:image/gif', 'data:image/webp', 'data:image/svg+xml']
+          const isValidMime = allowedMimes.some(mime => imageData!.startsWith(mime))
+          if (!isValidMime) {
+            console.warn(`Line ${index + 1} has invalid image MIME type. Only JPEG, PNG, GIF, WebP, SVG are allowed. Image cleared.`)
+            imageData = null
+          } else if (imageData.length > 1048576) { // 1MB limit
+            console.warn(`Line ${index + 1} image is ${(imageData.length / 1048576).toFixed(2)}MB — exceeds 1MB limit. Image cleared. Please compress the image before attaching.`)
+            imageData = null
+          }
         }
         
         return {
@@ -2192,6 +2249,15 @@ export class AccountingService {
       // 1) Get all accounts (single query)
       const accounts = await this.getChartOfAccounts()
 
+      // 1b) Fetch opening balances (single query — small table)
+      const { data: openingBalancesData } = await supabase
+        .from("opening_balances")
+        .select("account_id, balance")
+      const openingBalancesMap = new Map<string, number>()
+      for (const ob of openingBalancesData || []) {
+        openingBalancesMap.set(ob.account_id, safeNumber(ob.balance))
+      }
+
       // 2 & 3) Use the same paginated helpers as findUnbalancedEntries — guaranteed
       //        to return every entry and every line, with no row-limit gaps.
       const allEntries   = await AccountingService.fetchAllEntryIds(startDate, endDate)
@@ -2290,10 +2356,13 @@ export class AccountingService {
         calculateTotalBalance(account.id)
       }
 
-      // Build trial balance items for known accounts
+      // Build trial balance items for known accounts (including opening balances)
       const trialBalanceItems: TrialBalanceItem[] = accounts.map((account) => {
         const balance = balanceMap.get(account.id) || { debit: 0, credit: 0, closing: 0 }
         const hasChildren = childrenMap.has(account.id)
+        const openingBal = openingBalancesMap.get(account.id) ?? 0
+        // Closing balance = opening + net movement (debit - credit)
+        const closingWithOpening = safeNumber(openingBal + balance.closing)
         return {
           account_id: account.id,
           account_code: account.code,
@@ -2301,11 +2370,11 @@ export class AccountingService {
           account_type: account.account_types?.name || "Unknown",
           parent_account_id: account.parent_account_id,
           level: (account as { level?: number }).level ?? 1,
-          opening_balance: 0,
+          opening_balance: openingBal,
           debit_total: balance.debit,
           credit_total: balance.credit,
-          closing_balance: balance.closing,
-          total_balance: totalBalanceMap.get(account.id) ?? balance.closing,
+          closing_balance: closingWithOpening,
+          total_balance: totalBalanceMap.get(account.id) ?? closingWithOpening,
           has_children: hasChildren,
         }
       })
@@ -2604,6 +2673,20 @@ export class AccountingService {
       console.log(`- Liabilities: ${liabilities.length} accounts, Total: ${totalLiabilities}`)
       console.log(`- Equity: ${equity.length} accounts (including Net Income: ${netIncome}), Total: ${totalEquity}`)
       
+      // ── Accounting Equation Validation ──────────────────────────────────────
+      // Assets = Liabilities + Equity (including current net income)
+      const totalLiabEquity = totalLiabilities + totalEquity
+      const equationDifference = safeNumber(totalAssets - totalLiabEquity)
+      const isEquationBalanced = Math.abs(equationDifference) < 1  // tolerance < $1
+      if (!isEquationBalanced) {
+        console.warn(
+          `Balance Sheet equation UNBALANCED: Assets(${totalAssets}) ≠ ` +
+          `Liabilities(${totalLiabilities}) + Equity(${totalEquity}) | ` +
+          `Difference: ${equationDifference}`
+        )
+      }
+      // ────────────────────────────────────────────────────────────────────────
+
       return {
         assets,
         liabilities,
@@ -2611,18 +2694,23 @@ export class AccountingService {
         totalAssets,
         totalLiabilities,
         totalEquity,
-        netIncome
+        netIncome,
+        totalLiabEquity,
+        isEquationBalanced,
+        equationDifference,
       }
     } catch (error) {
       console.error("Error generating balance sheet:", error)
-      // Return empty data if there's an error
       return {
         assets: [],
         liabilities: [],
         equity: [],
         totalAssets: 0,
         totalLiabilities: 0,
-        totalEquity: 0
+        totalEquity: 0,
+        totalLiabEquity: 0,
+        isEquationBalanced: true,
+        equationDifference: 0,
       }
     }
   }
@@ -3017,16 +3105,16 @@ export class AccountingService {
           }
         }
         
-        // Only include accounts with activity
-        if (Math.abs(netCashFlow) > 0.01) { // Use small threshold to avoid rounding issues
+        // Only include accounts with activity (use signed amount: + = inflow, - = outflow)
+        if (Math.abs(netCashFlow) > 0.01) {
           const cashFlowItem = {
             category: account.name,
             description: account.name,
-            amount: Math.abs(netCashFlow),
+            amount: safeNumber(netCashFlow),   // SIGNED: positive = inflow, negative = outflow
             type: cashFlowCategory as 'operating' | 'investing' | 'financing',
-            code: account.code // Add code for sorting
+            code: account.code
           }
-          
+
           if (cashFlowCategory === 'investing') {
             investingActivities.push(cashFlowItem)
           } else if (cashFlowCategory === 'financing') {
@@ -3036,35 +3124,31 @@ export class AccountingService {
           }
         }
       }
-      
+
       // Sort by account code
       operatingActivities.sort((a, b) => (a.code || '').localeCompare(b.code || ''))
       investingActivities.sort((a, b) => (a.code || '').localeCompare(b.code || ''))
       financingActivities.sort((a, b) => (a.code || '').localeCompare(b.code || ''))
-      
-      // Calculate net cash flows (sum of all activities in each category)
-      // Note: Amounts are stored as absolute values, but we need to consider direction
-      // For operating: typically positive (inflows)
-      // For investing: typically negative (outflows for purchases)
-      // For financing: can be positive (borrowing) or negative (repayments)
-      const netOperatingCashFlow = operatingActivities.reduce((sum, item) => sum + item.amount, 0)
-      const netInvestingCashFlow = investingActivities.reduce((sum, item) => sum + item.amount, 0)
-      const netFinancingCashFlow = financingActivities.reduce((sum, item) => sum + item.amount, 0)
-      
-      // Net cash change = operating (typically +) - investing (typically -) + financing (can be +/-)
-      // Simplified: operating is positive, investing and financing are shown as positive but represent outflows
-      const netCashChange = netOperatingCashFlow - netInvestingCashFlow - netFinancingCashFlow
-      const cashAtEnd = cashAtBeginning + netCashChange
-      
+
+      // Net cash flows: direct sum of signed amounts (+ = inflow, - = outflow)
+      // This is consistent and correct regardless of activity type
+      const netOperatingCashFlow  = safeNumber(operatingActivities.reduce((s, i) => s + i.amount, 0))
+      const netInvestingCashFlow  = safeNumber(investingActivities.reduce((s, i) => s + i.amount, 0))
+      const netFinancingCashFlow  = safeNumber(financingActivities.reduce((s, i) => s + i.amount, 0))
+      const netCashChange         = safeNumber(netOperatingCashFlow + netInvestingCashFlow + netFinancingCashFlow)
+      const cashAtEnd             = safeNumber(cashAtBeginning + netCashChange)
+
+      console.log(`Cash Flow: Operating=${netOperatingCashFlow}, Investing=${netInvestingCashFlow}, Financing=${netFinancingCashFlow}, Net=${netCashChange}`)
+
       return {
         operating_activities: operatingActivities,
         investing_activities: investingActivities,
         financing_activities: financingActivities,
         net_cash_flow: {
           operating: netOperatingCashFlow,
-          investing: -netInvestingCashFlow, // Investing is typically negative (outflow)
-          financing: -netFinancingCashFlow, // Financing can be positive or negative
-          total: netCashChange
+          investing: netInvestingCashFlow,
+          financing: netFinancingCashFlow,
+          total:     netCashChange
         },
         cash_at_beginning: cashAtBeginning,
         cash_at_end: cashAtEnd
@@ -3249,12 +3333,11 @@ export class AccountingService {
 
       console.log(`Account ${account.code} summary: Debits: ${totalDebits}, Credits: ${totalCredits}, Net: ${netChange}, Balance: ${runningBalance}`)
 
-      // Get sub-accounts if any
+      // Get sub-accounts if any — fetch in one query (no recursive N+1)
       const { data: subAccounts, error: subAccountsError } = await supabase
         .from("accounts")
-        .select("*")
+        .select("*, account_types(*)")
         .eq("parent_account_id", accountId)
-        .eq("is_active", true)
         .order("code")
 
       if (subAccountsError) {
@@ -3263,11 +3346,45 @@ export class AccountingService {
 
       console.log(`Found ${subAccounts?.length || 0} sub-accounts for account ${account.code}`)
 
+      // Build lightweight sub-account summaries using already-fetched shared entry data
+      // instead of making a full recursive DB call per child (N+1 fix)
       let subAccountReports: AccountDetailReport[] = []
       if (subAccounts && subAccounts.length > 0) {
-        subAccountReports = await Promise.all(
-          subAccounts.map(subAccount => this.getAccountDetailReport(subAccount.id, startDate, endDate))
-        )
+        const subIds = subAccounts.map((s: any) => s.id)
+        // Batch-fetch all lines for sub-accounts in one query
+        const subLinesQ = supabase
+          .from("journal_entry_lines")
+          .select(`*, journal_entries!inner(entry_date, entry_number, description, reference)`)
+          .in("account_id", subIds)
+          .order("created_at")
+        if (startDate && endDate) {
+          subLinesQ.gte("journal_entries.entry_date", startDate).lte("journal_entries.entry_date", endDate)
+        }
+        const { data: allSubLines } = await subLinesQ
+
+        for (const subAcc of subAccounts) {
+          const subLines = (allSubLines || []).filter((l: any) => l.account_id === subAcc.id)
+          const subIsDebit = subAcc.account_types?.normal_balance === "debit"
+          let subRunning = 0
+          const subTx = subLines.map((t: any) => {
+            const d = safeNumber(t.debit_amount), c = safeNumber(t.credit_amount)
+            subRunning += subIsDebit ? d - c : c - d
+            return { id: t.id, entry_date: t.journal_entries.entry_date, entry_number: t.journal_entries.entry_number,
+                     description: t.description || t.journal_entries.description, debit_amount: d, credit_amount: c, running_balance: subRunning }
+          })
+          subAccountReports.push({
+            account: subAcc,
+            opening_balance: 0,
+            current_balance: subRunning,
+            transactions: subTx,
+            summary: {
+              total_debits:      subTx.reduce((s: number, t: any) => s + t.debit_amount, 0),
+              total_credits:     subTx.reduce((s: number, t: any) => s + t.credit_amount, 0),
+              net_change:        subRunning,
+              transaction_count: subTx.length,
+            },
+          })
+        }
       }
 
       return {
@@ -3304,53 +3421,50 @@ export class AccountingService {
 
       if (accountsError) throw accountsError
 
-      // Get summary data for each account
-      const accountSummaries = await Promise.all(
-        accounts.map(async (account) => {
-          try {
-            const detailReport = await this.getAccountDetailReport(account.id, startDate, endDate)
-            
-            // Check if account has sub-accounts
-            const { data: subAccounts } = await supabase
-              .from("accounts")
-              .select("id")
-              .eq("parent_account_id", account.id)
-              .eq("is_active", true)
+      // ── N+1 fix: batch-fetch all lines for all accounts at once ─────────────
+      const allAccountIds = (accounts || []).map((a: any) => a.id)
+      const allLines = allAccountIds.length > 0
+        ? await AccountingService.fetchLinesByEntryIds(
+            (await AccountingService.fetchAllEntryIds(startDate, endDate)).map(e => e.id)
+          )
+        : []
 
-            return {
-              account_id: account.id,
-              account_code: account.code,
-              account_name: account.name,
-              account_type: account.account_types?.name || account.account_type,
-              parent_account_id: account.parent_account_id,
-              opening_balance: detailReport.opening_balance,
-              current_balance: detailReport.current_balance,
-              total_debits: detailReport.summary.total_debits,
-              total_credits: detailReport.summary.total_credits,
-              net_change: detailReport.summary.net_change,
-              transaction_count: detailReport.summary.transaction_count,
-              has_sub_accounts: (subAccounts?.length || 0) > 0,
-            }
-          } catch (error) {
-            console.warn(`Failed to get summary for account ${account.code}:`, error)
-            // Return basic account info if detailed report fails
-            return {
-              account_id: account.id,
-              account_code: account.code,
-              account_name: account.name,
-              account_type: account.account_types?.name || account.account_type,
-              parent_account_id: account.parent_account_id,
-              opening_balance: 0,
-              current_balance: 0,
-              total_debits: 0,
-              total_credits: 0,
-              net_change: 0,
-              transaction_count: 0,
-              has_sub_accounts: false,
-            }
-          }
-        })
-      )
+      // Build parentId → has_children set in memory
+      const parentIds = new Set((accounts || []).map((a: any) => a.parent_account_id).filter(Boolean))
+
+      // Aggregate totals per account in memory
+      const totalsMap = new Map<string, { debits: number; credits: number; count: number }>()
+      for (const acc of (accounts || [])) {
+        totalsMap.set(acc.id, { debits: 0, credits: 0, count: 0 })
+      }
+      for (const line of allLines) {
+        const t = totalsMap.get(line.account_id as string)
+        if (t) {
+          t.debits += safeNumber(line.debit_amount)
+          t.credits += safeNumber(line.credit_amount)
+          t.count++
+        }
+      }
+
+      const accountSummaries = (accounts || []).map((account: any) => {
+        const t = totalsMap.get(account.id) || { debits: 0, credits: 0, count: 0 }
+        const isDebit = account.account_types?.normal_balance === "debit"
+        const netChange = safeNumber(isDebit ? t.debits - t.credits : t.credits - t.debits)
+        return {
+          account_id:        account.id,
+          account_code:      account.code,
+          account_name:      account.name,
+          account_type:      account.account_types?.name || account.account_type,
+          parent_account_id: account.parent_account_id,
+          opening_balance:   0,
+          current_balance:   netChange,
+          total_debits:      safeNumber(t.debits),
+          total_credits:     safeNumber(t.credits),
+          net_change:        netChange,
+          transaction_count: t.count,
+          has_sub_accounts:  parentIds.has(account.id),
+        }
+      })
 
       return accountSummaries
     } catch (error) {
