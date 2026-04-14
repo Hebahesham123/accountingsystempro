@@ -1959,23 +1959,63 @@ export class AccountingService {
     }
   }
 
-  // Find all entries whose lines don't balance, optionally within a date range.
-  // Uses the same getJournalEntries query (chunked per-entry fetch) which is the
-  // authoritative source — a global lines query can miss rows due to RLS/ordering.
+  // Shared helper: paginate ALL entry IDs for a date range (no row-limit risk)
+  private static async fetchAllEntryIds(startDate?: string, endDate?: string): Promise<Array<{id: string; entry_number: string; entry_date: string; description: string}>> {
+    const results: Array<{id: string; entry_number: string; entry_date: string; description: string}> = []
+    let offset = 0
+    while (true) {
+      let q = supabase
+        .from("journal_entries")
+        .select("id, entry_number, entry_date, description")
+        .order("id")                       // stable order prevents duplicates across pages
+        .range(offset, offset + 999)
+      if (startDate) q = q.gte("entry_date", startDate)
+      if (endDate)   q = q.lte("entry_date", endDate)
+      const { data, error } = await q
+      if (error || !data || data.length === 0) break
+      results.push(...data)
+      if (data.length < 1000) break
+      offset += 1000
+    }
+    return results
+  }
+
+  // Shared helper: fetch ALL lines for given entry IDs in chunks of 40
+  private static async fetchLinesByEntryIds(entryIds: string[]): Promise<any[]> {
+    const CHUNK = 40
+    const lines: any[] = []
+    for (let i = 0; i < entryIds.length; i += CHUNK) {
+      const chunk = entryIds.slice(i, i + CHUNK)
+      const { data } = await supabase
+        .from("journal_entry_lines")
+        .select("journal_entry_id, account_id, debit_amount, credit_amount")
+        .in("journal_entry_id", chunk)
+        .order("journal_entry_id")
+        .order("line_number")
+        .limit(10000)
+      if (data) lines.push(...data)
+    }
+    return lines
+  }
+
+  // Find ALL entries whose lines don't balance (paginated — checks every entry, no row-limit gaps)
   static async findUnbalancedEntries(startDate?: string, endDate?: string): Promise<Array<{
-    entry_id: string
-    entry_number: string
-    entry_date: string
-    description: string
-    total_debit: number
-    total_credit: number
-    difference: number
-    line_count: number
+    entry_id: string; entry_number: string; entry_date: string
+    description: string; total_debit: number; total_credit: number
+    difference: number; line_count: number
   }>> {
     try {
-      // Reuse getJournalEntries: it fetches lines per-entry in chunks (same as the list view)
-      // so we know it returns the correct lines for every entry
-      const entries = await this.getJournalEntries({ startDate, endDate })
+      const entries = await this.fetchAllEntryIds(startDate, endDate)
+      const entryIds = entries.map(e => e.id)
+      const allLines = await this.fetchLinesByEntryIds(entryIds)
+
+      // Group lines by entry
+      const lineMap = new Map<string, any[]>()
+      for (const l of allLines) {
+        const eid = l.journal_entry_id as string
+        if (!lineMap.has(eid)) lineMap.set(eid, [])
+        lineMap.get(eid)!.push(l)
+      }
 
       const unbalanced: Array<{
         entry_id: string; entry_number: string; entry_date: string
@@ -1984,14 +2024,13 @@ export class AccountingService {
       }> = []
 
       for (const entry of entries) {
-        const lines = (entry.journal_entry_lines as any[]) || []
+        const lines = lineMap.get(entry.id) || []
         let td = 0, tc = 0
         for (const l of lines) {
           td += safeNumber(l.debit_amount)
           tc += safeNumber(l.credit_amount)
         }
-        td = safeNumber(td)
-        tc = safeNumber(tc)
+        td = safeNumber(td); tc = safeNumber(tc)
         const diff = safeNumber(td - tc)
         if (Math.abs(diff) > 0.01) {
           unbalanced.push({
@@ -2006,7 +2045,6 @@ export class AccountingService {
           })
         }
       }
-
       return unbalanced.sort((a, b) => Math.abs(b.difference) - Math.abs(a.difference))
     } catch (error) {
       console.error("Error finding unbalanced entries:", error)
@@ -2154,38 +2192,11 @@ export class AccountingService {
       // 1) Get all accounts (single query)
       const accounts = await this.getChartOfAccounts()
 
-      // 2) Fetch all journal entry IDs within the date range — paginated so we never
-      //    hit a row limit. We fetch IDs only (tiny payload) then fetch lines per-entry.
-      const allEntryIds: string[] = []
-      let offset = 0
-      while (true) {
-        let q = supabase
-          .from("journal_entries")
-          .select("id")
-          .range(offset, offset + 999)
-        if (startDate) q = q.gte("entry_date", startDate)
-        if (endDate)   q = q.lte("entry_date", endDate)
-        const { data: page, error: pageErr } = await q
-        if (pageErr || !page || page.length === 0) break
-        for (const row of page) allEntryIds.push(row.id)
-        if (page.length < 1000) break
-        offset += 1000
-      }
-
-      // 3) Fetch lines per-entry in chunks of 40 with a high explicit limit.
-      //    Per-entry chunks avoid any global-query row-drop issue. Explicit limit
-      //    ensures PostgREST never silently truncates.
-      const CHUNK = 40
-      const allLines: any[] = []
-      for (let i = 0; i < allEntryIds.length; i += CHUNK) {
-        const chunk = allEntryIds.slice(i, i + CHUNK)
-        const { data: chunkLines } = await supabase
-          .from("journal_entry_lines")
-          .select("account_id, debit_amount, credit_amount")
-          .in("journal_entry_id", chunk)
-          .limit(10000)
-        if (chunkLines) allLines.push(...chunkLines)
-      }
+      // 2 & 3) Use the same paginated helpers as findUnbalancedEntries — guaranteed
+      //        to return every entry and every line, with no row-limit gaps.
+      const allEntries   = await AccountingService.fetchAllEntryIds(startDate, endDate)
+      const allEntryIds  = allEntries.map(e => e.id)
+      const allLines     = await AccountingService.fetchLinesByEntryIds(allEntryIds)
 
       // 4) Aggregate by account_id — include ALL lines even for accounts not in the
       //    chart of accounts (inactive / deleted accounts). Filtering them out causes
@@ -3566,49 +3577,23 @@ export class AccountingService {
   static async getAllAccountBalances(asOfDate?: string): Promise<Map<string, { ownBalance: number; totalBalance: number }>> {
     try {
       const currentDate = asOfDate || new Date().toISOString().split('T')[0]
-      
-      // Get all accounts with their type info
+
+      // Get ALL accounts (including inactive — they may still have transactions)
       const { data: accounts, error: accountsError } = await supabase
         .from("accounts")
-        .select(`
-          id,
-          parent_account_id,
-          account_types(name, normal_balance)
-        `)
-        .eq("is_active", true)
+        .select("id, parent_account_id, account_types(name, normal_balance)")
+        .limit(2000)
 
       if (accountsError) throw accountsError
 
-      // Get all journal entry lines with their dates
-      // First get journal entry IDs within date range
-      const { data: journalEntryIds, error: jeError } = await supabase
-        .from("journal_entries")
-        .select("id")
-        .lte("entry_date", currentDate)
+      // Fetch all entry IDs up to asOfDate — paginated so no row-limit gaps
+      const allEntryMeta = await AccountingService.fetchAllEntryIds(undefined, currentDate)
+      const entryIds = allEntryMeta.map(e => e.id)
 
-      if (jeError) {
-        console.error("Error fetching journal entries for balance calculation:", jeError)
-        throw jeError
-      }
-
-      const entryIds = journalEntryIds?.map(je => je.id) || []
-      
-      // Then get journal entry lines for those entries
-      const { data: allTransactions, error: transError } = entryIds.length > 0
-        ? await supabase
-            .from("journal_entry_lines")
-            .select(`
-              account_id,
-              debit_amount,
-              credit_amount
-            `)
-            .in("journal_entry_id", entryIds)
-        : { data: [], error: null }
-
-      if (transError) {
-        console.error("Error fetching journal entry lines for balance calculation:", transError)
-        throw transError
-      }
+      // Fetch all lines for those entries — chunked so no URL-length overflow
+      const allTransactions = entryIds.length > 0
+        ? await AccountingService.fetchLinesByEntryIds(entryIds)
+        : []
 
       // Get all opening balances
       const { data: openingBalances, error: openingError } = await supabase

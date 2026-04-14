@@ -253,6 +253,10 @@ export default function TrialBalance() {
               <Filter className="h-4 w-4 mr-2" />
               {loading ? t("common.loading") : t("tb.applyDateFilter")}
             </Button>
+            <Button onClick={() => loadTrialBalance(startDate, endDate)} variant="outline" disabled={loading} title="Reload trial balance with latest data">
+              <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} />
+              {language === "ar" ? "تحديث" : "Refresh"}
+            </Button>
           </div>
 
           {/* Search and Type Filters */}

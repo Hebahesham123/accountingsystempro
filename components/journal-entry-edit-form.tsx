@@ -39,6 +39,7 @@ interface JournalEntryEditFormProps {
 export default function JournalEntryEditForm({ entry }: JournalEntryEditFormProps) {
   const [accounts, setAccounts] = useState<Account[]>([])
   const [hierarchicalAccounts, setHierarchicalAccounts] = useState<HierarchicalAccount[]>([])
+  const [accountBalances, setAccountBalances] = useState<Map<string, { ownBalance: number; totalBalance: number }>>(new Map())
   const [projects, setProjects] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
   const [loadingAccounts, setLoadingAccounts] = useState(true)
@@ -60,6 +61,10 @@ export default function JournalEntryEditForm({ entry }: JournalEntryEditFormProp
     loadAccounts()
     loadProjects()
     initializeFormData()
+    // Load balances asynchronously (don't block UI)
+    AccountingService.getAllAccountBalances()
+      .then(b => setAccountBalances(b))
+      .catch(() => {})
   }, [])
 
   const initializeFormData = () => {
@@ -222,6 +227,11 @@ export default function JournalEntryEditForm({ entry }: JournalEntryEditFormProp
             <span className="font-mono text-sm text-gray-600">{account.code}</span>
             <span className="font-medium">{account.name}</span>
             <Badge className={getAccountTypeColor(accountTypeName)}>{accountTypeName}</Badge>
+            {accountBalances.has(account.id) && (
+              <span className={`ml-auto font-mono text-xs ${(accountBalances.get(account.id)?.totalBalance || 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                {formatCurrency(accountBalances.get(account.id)?.totalBalance || 0)}
+              </span>
+            )}
           </div>
         </CommandItem>
 
@@ -481,8 +491,7 @@ export default function JournalEntryEditForm({ entry }: JournalEntryEditFormProp
       hierarchyPath = `${parentAccount.code} → ${account.code}`
     }
     
-    // For now, we'll set balance to 0 - this could be enhanced to fetch real balances
-    const balance = 0
+    const balance = accountBalances.get(account.id)?.totalBalance || 0
     
     return {
       code: account.code,
