@@ -1,0 +1,632 @@
+"use client"
+
+import { useState, useEffect } from "react"
+import { Download, Filter, Search, ChevronRight, ChevronDown, FolderOpen, Folder } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Badge } from "@/components/ui/badge"
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { type Account, AccountingService } from "@/lib/accounting-utils"
+import { useToast } from "@/hooks/use-toast"
+import { useLanguage } from "@/lib/language-context"
+
+interface GeneralLedgerEntry {
+  id: string
+  entry_date: string
+  entry_number: string
+  description: string
+  reference?: string
+  debit_amount: number
+  credit_amount: number
+  running_balance: number
+  project_id?: string
+  project_name?: string | null
+  journal_entries: {
+    entry_date: string
+    entry_number: string
+    description: string
+    reference?: string
+  }
+  accounts: {
+    code: string
+    name: string
+  }
+}
+
+export default function GeneralLedger() {
+  const { language, t } = useLanguage()
+  const [accounts, setAccounts] = useState<Account[]>([])
+  const [accountBalances, setAccountBalances] = useState<Map<string, { ownBalance: number; totalBalance: number }>>(new Map())
+  const [selectedAccountId, setSelectedAccountId] = useState<string>("")
+  const [ledgerEntries, setLedgerEntries] = useState<GeneralLedgerEntry[]>([])
+  const [loading, setLoading] = useState(false)
+  const [startDate, setStartDate] = useState("")
+  const [endDate, setEndDate] = useState("")
+  const [searchTerm, setSearchTerm] = useState("")
+  const [accountSearchValue, setAccountSearchValue] = useState("")
+  const [accountPopoverOpen, setAccountPopoverOpen] = useState(false)
+  const [expandedTypes, setExpandedTypes] = useState<Set<string>>(new Set(["Asset", "Liability", "Equity", "Revenue", "Expense"]))
+  const [projects, setProjects] = useState<{ id: string; name: string }[]>([])
+  const [selectedProjectId, setSelectedProjectId] = useState<string>("all")
+  const [projectPopoverOpen, setProjectPopoverOpen] = useState(false)
+  const [projectSearchValue, setProjectSearchValue] = useState("")
+  const { toast } = useToast()
+
+  useEffect(() => {
+    loadAccounts()
+    loadProjects()
+    // Set default dates (current year)
+    const now = new Date()
+    const yearStart = new Date(now.getFullYear(), 0, 1)
+    const yearEnd = new Date(now.getFullYear(), 11, 31)
+    setStartDate(yearStart.toISOString().split("T")[0])
+    setEndDate(yearEnd.toISOString().split("T")[0])
+  }, [])
+
+  const loadAccounts = async () => {
+    try {
+      const [data, balances] = await Promise.all([
+        AccountingService.getChartOfAccounts(),
+        AccountingService.getAllAccountBalances()
+      ])
+      setAccounts(data)
+      setAccountBalances(balances)
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to load accounts",
+        variant: "destructive",
+      })
+    }
+  }
+
+  const loadProjects = async () => {
+    try {
+      const data = await AccountingService.getProjects()
+      setProjects(data || [])
+    } catch {
+      // Projects feature may not be available; ignore silently
+    }
+  }
+
+  // Build hierarchical accounts grouped by type
+  const getAccountsByType = () => {
+    const grouped: { [key: string]: Account[] } = {}
+    for (const account of accounts) {
+      const type = account.account_types?.name || account.account_type || "Other"
+      if (!grouped[type]) {
+        grouped[type] = []
+      }
+      grouped[type].push(account)
+    }
+    return grouped
+  }
+
+  const hasChildren = (accountId: string) => {
+    return accounts.some(a => a.parent_account_id === accountId)
+  }
+
+  const getAccountBalance = (accountId: string) => {
+    const balance = accountBalances.get(accountId)
+    return balance?.totalBalance || 0
+  }
+
+  const loadGeneralLedger = async () => {
+    if (!selectedAccountId) {
+      toast({
+        title: "No Account Selected",
+        description: "Please select an account to view its general ledger",
+        variant: "destructive",
+      })
+      return
+    }
+
+    try {
+      setLoading(true)
+      const data = await AccountingService.getGeneralLedger(selectedAccountId, startDate, endDate, selectedProjectId !== "all" ? selectedProjectId : undefined)
+
+      // Calculate running balance
+      let runningBalance = 0
+      const entriesWithBalance = data.map((entry: any) => {
+        const selectedAccount = accounts.find((acc) => acc.id === selectedAccountId)
+        const isDebitAccount = selectedAccount?.account_type === "Asset" || selectedAccount?.account_type === "Expense"
+
+        if (isDebitAccount) {
+          runningBalance += entry.debit_amount - entry.credit_amount
+        } else {
+          runningBalance += entry.credit_amount - entry.debit_amount
+        }
+
+        return {
+          ...entry,
+          running_balance: runningBalance,
+        }
+      })
+
+      setLedgerEntries(entriesWithBalance)
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to load general ledger",
+        variant: "destructive",
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleAccountChange = (accountId: string) => {
+    if (accountId === "placeholder") return
+    setSelectedAccountId(accountId)
+    setLedgerEntries([]) // Clear previous entries
+    setAccountPopoverOpen(false)
+    setAccountSearchValue("")
+  }
+
+  // Filter accounts by search (code, name, type) for the account picker
+  const filteredAccountsForPicker = accounts.filter((account) => {
+    if (!accountSearchValue.trim()) return true
+    const q = accountSearchValue.toLowerCase().trim()
+    const code = (account.code || "").toLowerCase()
+    const name = (account.name || "").toLowerCase()
+    const typeName = (account.account_types?.name || account.account_type || "").toLowerCase()
+    return code.includes(q) || name.includes(q) || typeName.includes(q)
+  })
+
+  const filteredProjects = projects.filter((p) => {
+    if (!projectSearchValue.trim()) return true
+    return p.name.toLowerCase().includes(projectSearchValue.toLowerCase().trim())
+  })
+
+  const getSelectedProject = () => projects.find((p) => p.id === selectedProjectId)
+
+  const searchLower = searchTerm.toLowerCase().trim()
+  const filteredEntries = !searchLower
+    ? ledgerEntries
+    : ledgerEntries.filter((entry) => {
+        const desc = (entry.description || "").toLowerCase()
+        const jeDesc = (entry.journal_entries?.description || "").toLowerCase()
+        const jeNum = (entry.journal_entries?.entry_number || "").toLowerCase()
+        const ref = (entry.reference || entry.journal_entries?.reference || "").toLowerCase()
+        const accCode = (entry.account_code || entry.accounts?.code || "").toLowerCase()
+        const accName = (entry.account_name || entry.accounts?.name || "").toLowerCase()
+        const projName = (entry.project_name || "").toLowerCase()
+        return (
+          desc.includes(searchLower) ||
+          jeDesc.includes(searchLower) ||
+          jeNum.includes(searchLower) ||
+          ref.includes(searchLower) ||
+          accCode.includes(searchLower) ||
+          accName.includes(searchLower) ||
+          projName.includes(searchLower)
+        )
+      })
+
+  const getTotalDebits = () => {
+    return filteredEntries.reduce((sum, entry) => sum + entry.debit_amount, 0)
+  }
+
+  const getTotalCredits = () => {
+    return filteredEntries.reduce((sum, entry) => sum + entry.credit_amount, 0)
+  }
+
+  const getSelectedAccount = () => {
+    return accounts.find((account) => account.id === selectedAccountId)
+  }
+
+  const selectedAccountHasChildren = () => {
+    return accounts.some(a => a.parent_account_id === selectedAccountId)
+  }
+
+  const exportToCSV = () => {
+    if (!selectedAccountId || filteredEntries.length === 0) return
+
+    const selectedAccount = getSelectedAccount()
+    const headers = ["Date", "Entry Number", "Description", "Reference", "Project", "Debit", "Credit", "Balance"]
+    const csvContent = [
+      headers.join(","),
+      ...filteredEntries.map((entry) =>
+        [
+          entry.journal_entries.entry_date,
+          entry.journal_entries.entry_number,
+          `"${entry.description || entry.journal_entries.description}"`,
+          `"${entry.reference || entry.journal_entries.reference || ""}"`,
+          `"${entry.project_name || ""}"`,
+          entry.debit_amount.toFixed(2),
+          entry.credit_amount.toFixed(2),
+          entry.running_balance.toFixed(2),
+        ].join(","),
+      ),
+    ].join("\n")
+
+    const blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8;" })
+    const url = window.URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = url
+    a.download = `general-ledger-${selectedAccount?.code}-${startDate}-to-${endDate}.csv`
+    a.click()
+    window.URL.revokeObjectURL(url)
+  }
+
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
+    }).format(amount)
+  }
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString()
+  }
+
+  return (
+    <div className="w-full space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold">{t("gl.title")}</h1>
+          <p className="text-muted-foreground">{t("gl.viewTransactionHistory")}</p>
+        </div>
+        <Button onClick={exportToCSV} variant="outline" disabled={!selectedAccountId || filteredEntries.length === 0}>
+          <Download className="h-4 w-4 mr-2" />
+          {t("gl.exportCSV")}
+        </Button>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>{language === "ar" ? "اختيار الحساب والمرشحات" : "Account Selection & Filters"}</CardTitle>
+          <CardDescription>{t("gl.selectAccountToView")}</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
+            <div className="space-y-2 lg:col-span-2">
+              <Label>{language === "ar" ? "اختيار الحساب (ابحث بالكود أو الاسم)" : "Choose account (search by code or name)"}</Label>
+              <Popover open={accountPopoverOpen} onOpenChange={setAccountPopoverOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={accountPopoverOpen}
+                    className="w-full justify-between font-normal h-10"
+                  >
+                    {selectedAccountId ? (
+                      <div className="flex items-center gap-2 truncate">
+                        <span className="font-mono text-sm">{getSelectedAccount()?.code}</span>
+                        <span className="truncate">{getSelectedAccount()?.name}</span>
+                        <span className={`font-mono text-xs ml-auto ${(getAccountBalance(selectedAccountId) >= 0) ? "text-green-600" : "text-red-600"}`}>
+                          {formatCurrency(getAccountBalance(selectedAccountId))}
+                        </span>
+                      </div>
+                    ) : (
+                      <span className="text-muted-foreground">{t("gl.selectAccount")}</span>
+                    )}
+                    <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[var(--radix-popover-trigger-width)] max-w-[500px] p-0" align="start">
+                  <Command shouldFilter={false}>
+                    <CommandInput
+                      placeholder={language === "ar" ? "ابحث بالكود أو اسم الحساب..." : "Search by account code or name..."}
+                      value={accountSearchValue}
+                      onValueChange={setAccountSearchValue}
+                    />
+                    <CommandList>
+                      <CommandEmpty>
+                        {accountSearchValue
+                          ? (language === "ar" ? `لا توجد حسابات تطابق "${accountSearchValue}"` : `No accounts matching "${accountSearchValue}"`)
+                          : (language === "ar" ? "لا توجد حسابات" : "No accounts")}
+                      </CommandEmpty>
+                      <CommandGroup>
+                        {filteredAccountsForPicker
+                          .sort((a, b) => a.code.localeCompare(b.code))
+                          .map((account) => {
+                            const balance = getAccountBalance(account.id)
+                            const isParent = hasChildren(account.id)
+                            const indent = ((account as { level?: number }).level || 1) - 1
+                            return (
+                              <CommandItem
+                                key={account.id}
+                                value={account.id}
+                                onSelect={() => handleAccountChange(account.id)}
+                              >
+                                <div className="flex items-center justify-between w-full gap-2 min-w-0">
+                                  <div className="flex items-center gap-2 min-w-0" style={{ paddingLeft: `${indent * 12}px` }}>
+                                    {isParent ? (
+                                      <FolderOpen className="h-3 w-3 shrink-0 text-blue-500" />
+                                    ) : (
+                                      <Folder className="h-3 w-3 shrink-0 text-gray-400" />
+                                    )}
+                                    <span className="font-mono text-xs shrink-0">{account.code}</span>
+                                    <span className="truncate">{account.name}</span>
+                                  </div>
+                                  <span className={`font-mono text-xs shrink-0 ${balance >= 0 ? "text-green-600" : "text-red-600"}`}>
+                                    {formatCurrency(balance)}
+                                  </span>
+                                </div>
+                              </CommandItem>
+                            )
+                          })}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="start_date">{t("je.startDate")}</Label>
+              <Input id="start_date" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="end_date">{t("je.endDate")}</Label>
+              <Input id="end_date" type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+            </div>
+
+            {projects.length > 0 && (
+              <div className="space-y-2">
+                <Label>{language === "ar" ? "المشروع" : "Project"}</Label>
+                <Popover open={projectPopoverOpen} onOpenChange={setProjectPopoverOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      role="combobox"
+                      aria-expanded={projectPopoverOpen}
+                      className="w-full justify-between font-normal h-10"
+                    >
+                      <span className="truncate">
+                        {selectedProjectId === "all"
+                          ? (language === "ar" ? "كل المشاريع" : "All Projects")
+                          : (getSelectedProject()?.name || (language === "ar" ? "اختر مشروعاً" : "Select project"))}
+                      </span>
+                      <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[var(--radix-popover-trigger-width)] max-w-[300px] p-0" align="start">
+                    <Command shouldFilter={false}>
+                      <CommandInput
+                        placeholder={language === "ar" ? "ابحث عن مشروع..." : "Search project..."}
+                        value={projectSearchValue}
+                        onValueChange={setProjectSearchValue}
+                      />
+                      <CommandList>
+                        <CommandEmpty>{language === "ar" ? "لا توجد مشاريع" : "No projects found"}</CommandEmpty>
+                        <CommandGroup>
+                          <CommandItem
+                            value="all"
+                            onSelect={() => { setSelectedProjectId("all"); setProjectPopoverOpen(false); setProjectSearchValue("") }}
+                          >
+                            {language === "ar" ? "كل المشاريع" : "All Projects"}
+                          </CommandItem>
+                          {filteredProjects.map((project) => (
+                            <CommandItem
+                              key={project.id}
+                              value={project.id}
+                              onSelect={() => { setSelectedProjectId(project.id); setProjectPopoverOpen(false); setProjectSearchValue("") }}
+                            >
+                              {project.name}
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <Label>&nbsp;</Label>
+              <Button onClick={loadGeneralLedger} disabled={loading || !selectedAccountId} className="w-full">
+                <Filter className="h-4 w-4 mr-2" />
+                {loading ? t("common.loading") : t("gl.loadLedger")}
+              </Button>
+            </div>
+          </div>
+
+          {/* Search bar - visible whenever an account is selected; filters loaded transactions */}
+          <div className="mt-4">
+            <Label htmlFor="gl-search">{language === "ar" ? "بحث في السجل" : "Search in ledger"}</Label>
+            <div className="relative mt-1.5">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                id="gl-search"
+                placeholder={
+                  selectedAccountId
+                    ? (language === "ar" ? "البحث بالوصف أو رقم القيد أو المرجع..." : "Search by description, entry number, or reference...")
+                    : (language === "ar" ? "اختر حساباً ثم حمّل السجل للبحث" : "Select an account and load ledger to search")
+                }
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10"
+                disabled={!selectedAccountId}
+              />
+            </div>
+            {selectedAccountId && ledgerEntries.length > 0 && (
+              <p className="text-xs text-muted-foreground mt-1">
+                {language === "ar"
+                  ? `عرض ${filteredEntries.length} من ${ledgerEntries.length} معاملة`
+                  : `Showing ${filteredEntries.length} of ${ledgerEntries.length} transactions`}
+                {searchTerm && ` • "${searchTerm}"`}
+              </p>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {selectedAccountId && ledgerEntries.length > 0 && (
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle>
+                  General Ledger - {getSelectedAccount()?.code} {getSelectedAccount()?.name}
+                  {selectedAccountHasChildren() && (
+                    <Badge variant="outline" className="ml-2">
+                      {language === "ar" ? "يتضمن الحسابات الفرعية" : "Includes sub-accounts"}
+                    </Badge>
+                  )}
+                </CardTitle>
+                <CardDescription>
+                  {language === "ar" ? `سجل المعاملات من ${formatDate(startDate)} إلى ${formatDate(endDate)}` : `Transaction history from ${formatDate(startDate)} to ${formatDate(endDate)}`}
+                  {searchTerm && (language === "ar" ? ` • تم التصفية بواسطة: "${searchTerm}"` : ` • Filtered by: "${searchTerm}"`)}
+                  {selectedAccountHasChildren() && (language === "ar" ? " • عرض المعاملات من هذا الحساب وجميع الحسابات الفرعية" : " • Showing transactions from this account and all sub-accounts")}
+                </CardDescription>
+              </div>
+              <div className="text-right">
+                <Badge variant="outline" className="text-sm">
+                  {filteredEntries.length} {language === "ar" ? "معاملة" : "transactions"}
+                </Badge>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="border rounded-lg overflow-hidden">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>{t("common.date")}</TableHead>
+                    <TableHead>{t("gl.entryNumber")}</TableHead>
+                    {selectedAccountHasChildren() && <TableHead>{t("gl.selectAccount")}</TableHead>}
+                    <TableHead>{t("common.description")}</TableHead>
+                    <TableHead>{t("gl.reference")}</TableHead>
+                    <TableHead>{language === "ar" ? "المشروع" : "Project"}</TableHead>
+                    <TableHead className="text-right">{t("gl.debit")}</TableHead>
+                    <TableHead className="text-right">{t("gl.credit")}</TableHead>
+                    <TableHead className="text-right">{t("gl.runningBalance")}</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredEntries.map((entry) => (
+                    <TableRow key={entry.id}>
+                      <TableCell>{formatDate(entry.journal_entries.entry_date)}</TableCell>
+                      <TableCell className="font-mono text-sm">{entry.journal_entries.entry_number}</TableCell>
+                      {selectedAccountHasChildren() && (
+                        <TableCell>
+                          {entry.is_child_account ? (
+                            <div className="flex items-center gap-1">
+                              <span className="font-mono text-xs text-blue-600">{entry.account_code}</span>
+                              <span className="text-xs text-muted-foreground">{entry.account_name}</span>
+                            </div>
+                          ) : (
+                            <Badge variant="outline" className="text-xs">{t("general.parent")}</Badge>
+                          )}
+                        </TableCell>
+                      )}
+                      <TableCell>
+                        <div>
+                          <div className="font-medium">{entry.description || entry.journal_entries.description}</div>
+                          {entry.description && entry.description !== entry.journal_entries.description && (
+                            <div className="text-sm text-muted-foreground">
+                              {language === "ar" ? "القيد: " : "Entry: "}{entry.journal_entries.description}
+                            </div>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {entry.reference || entry.journal_entries.reference || "-"}
+                      </TableCell>
+                      <TableCell className="text-sm">
+                        {entry.project_name ? (
+                          <Badge variant="secondary" className="text-xs font-normal">{entry.project_name}</Badge>
+                        ) : (
+                          <span className="text-muted-foreground">-</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {entry.debit_amount > 0 ? formatCurrency(entry.debit_amount) : "-"}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {entry.credit_amount > 0 ? formatCurrency(entry.credit_amount) : "-"}
+                      </TableCell>
+                      <TableCell className="text-right font-semibold">
+                        {formatCurrency(entry.running_balance)}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+
+                  {/* Totals Row */}
+                  <TableRow className="bg-gray-50 font-semibold">
+                    <TableCell colSpan={selectedAccountHasChildren() ? 6 : 5} className="text-right">
+                      <strong>{t("general.totals")}</strong>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <strong>{formatCurrency(getTotalDebits())}</strong>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <strong>{formatCurrency(getTotalCredits())}</strong>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Badge variant="outline">
+                        Final Balance:{" "}
+                        {formatCurrency(filteredEntries[filteredEntries.length - 1]?.running_balance || 0)}
+                      </Badge>
+                    </TableCell>
+                  </TableRow>
+                </TableBody>
+              </Table>
+            </div>
+
+            {/* Summary Statistics */}
+            <div className="mt-4 grid grid-cols-1 md:grid-cols-4 gap-4">
+              <Card>
+                <CardContent className="p-4">
+                  <div className="text-sm font-medium text-muted-foreground">Total Transactions</div>
+                  <div className="text-2xl font-bold">{filteredEntries.length}</div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="p-4">
+                  <div className="text-sm font-medium text-muted-foreground">Total Debits</div>
+                  <div className="text-2xl font-bold text-green-600">{formatCurrency(getTotalDebits())}</div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="p-4">
+                  <div className="text-sm font-medium text-muted-foreground">Total Credits</div>
+                  <div className="text-2xl font-bold text-red-600">{formatCurrency(getTotalCredits())}</div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="p-4">
+                  <div className="text-sm font-medium text-muted-foreground">Ending Balance</div>
+                  <div className="text-2xl font-bold">
+                    {formatCurrency(filteredEntries[filteredEntries.length - 1]?.running_balance || 0)}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {selectedAccountId && ledgerEntries.length === 0 && !loading && (
+        <Card>
+          <CardContent className="p-8 text-center">
+            <div className="text-muted-foreground">
+              <Search className="h-12 w-12 mx-auto mb-4 opacity-50" />
+              <p className="text-lg font-medium">No transactions found</p>
+              <p className="text-sm">{getSelectedAccount()?.name} has no transactions in the selected date range.</p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {!selectedAccountId && (
+        <Card>
+          <CardContent className="p-8 text-center">
+            <div className="text-muted-foreground">
+              <Search className="h-12 w-12 mx-auto mb-4 opacity-50" />
+              <p className="text-lg font-medium">Select an Account</p>
+              <p className="text-sm">Choose an account from the dropdown above to view its general ledger.</p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  )
+}

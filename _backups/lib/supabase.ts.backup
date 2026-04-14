@@ -1,34 +1,26 @@
 import { createClient } from "@supabase/supabase-js"
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ""
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
-
-if (!supabaseUrl || !supabaseAnonKey) {
-  console.warn("Supabase environment variables are not set. Database operations will fail.")
-}
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   db: {
-    schema: "public",
+    schema: 'public',
   },
   global: {
     headers: {
-      Accept: "application/json",
-      "Content-Type": "application/json",
+      'Accept': 'application/json',
+      'Content-Type': 'application/json',
     },
   },
 })
-
-// ============================================
-// Shared Types
-// ============================================
 
 export type AccountType = {
   id: string
   name: string
   description?: string
   normal_balance: "debit" | "credit"
-  cash_flow_category?: "operating" | "investing" | "financing" | null
+  cash_flow_category?: "operating" | "investing" | "financing"
   is_system: boolean
   is_active: boolean
   created_at: string
@@ -41,13 +33,13 @@ export type Account = {
   name: string
   account_type: "Asset" | "Liability" | "Equity" | "Revenue" | "Expense" | string
   account_type_id?: string
-  parent_account_id?: string | null
+  parent_account_id?: string
   description?: string
   is_active: boolean
   level: number
   lft?: number
   rgt?: number
-  cash_flow_category?: "operating" | "investing" | "financing" | null
+  cash_flow_category?: "operating" | "investing" | "financing"
   created_at: string
   updated_at: string
   account_types?: AccountType
@@ -85,16 +77,13 @@ export type JournalEntryLine = {
   line_number: number
   created_at: string
   image_data?: string
-  project_id?: string | null
   account?: Account
   accounts?: {
     id: string
     code: string
     name: string
-    account_type?: string
-    account_types?: {
+    account_types: {
       name: string
-      normal_balance?: string
     }
   }
 }
@@ -113,21 +102,8 @@ export type TrialBalanceItem = {
   account_code: string
   account_name: string
   account_type: string
-  parent_account_id?: string | null
-  level: number
   opening_balance: number
   debit_total: number
   credit_total: number
   closing_balance: number
-  total_balance: number
-  has_children: boolean
-}
-
-// ============================================
-// Utility: Safe number parsing for Postgres DECIMAL
-// ============================================
-export function safeNumber(value: unknown): number {
-  if (value === null || value === undefined) return 0
-  const n = typeof value === "string" ? parseFloat(value) : Number(value)
-  return isNaN(n) ? 0 : Math.round(n * 100) / 100
 }

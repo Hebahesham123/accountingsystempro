@@ -9,7 +9,7 @@ import { Calculator, FileText, TrendingUp, Users, PieChart, BookOpen, DollarSign
 import { AccountingService, type DashboardStats, type Account } from "@/lib/accounting-utils"
 import { getCurrentUser, isRegularUser } from "@/lib/auth-utils"
 import { useLanguage } from "@/lib/language-context"
-// formatCurrency is defined locally below for dashboard display
+import { formatCurrency } from "@/lib/export-utils"
 
 type AccountSummary = {
   type: string
@@ -22,7 +22,13 @@ export default function HomePage() {
   const router = useRouter()
   const currentUser = getCurrentUser()
   const { language, t } = useLanguage()
-  const isRegular = isRegularUser(currentUser)
+  
+  // Redirect regular users to purchase orders
+  useEffect(() => {
+    if (isRegularUser(currentUser)) {
+      router.push('/purchase-orders')
+    }
+  }, [currentUser, router])
 
   const [stats, setStats] = useState<DashboardStats>({
     totalAssets: 0,
@@ -33,17 +39,12 @@ export default function HomePage() {
   const [accountSummaries, setAccountSummaries] = useState<AccountSummary[]>([])
   const [loading, setLoading] = useState(true)
 
-  // Redirect regular users to purchase orders
-  useEffect(() => {
-    if (isRegular) {
-      router.push("/purchase-orders")
-    }
-  }, [isRegular, router])
+  // Don't render dashboard for regular users
+  if (isRegularUser(currentUser)) {
+    return null
+  }
 
-  // Load dashboard data (all hooks MUST be above any conditional return)
   useEffect(() => {
-    if (isRegular) return // Skip loading for regular users
-
     const loadStats = async () => {
       try {
         const [dashboardStats, accounts, balances] = await Promise.all([
@@ -103,12 +104,7 @@ export default function HomePage() {
     }
 
     loadStats()
-  }, [isRegular])
-
-  // Don't render dashboard for regular users
-  if (isRegular) {
-    return null
-  }
+  }, [])
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("en-US", {

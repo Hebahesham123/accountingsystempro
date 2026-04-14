@@ -8,30 +8,28 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter()
   const pathname = usePathname()
   const [isChecking, setIsChecking] = useState(true)
-  const [isAuthorized, setIsAuthorized] = useState(false)
 
   useEffect(() => {
+    // Don't protect login page
     if (pathname === '/login') {
       setIsChecking(false)
-      setIsAuthorized(true)
       return
     }
+
+    // Check authentication
     const checkAuth = async () => {
-      try {
-        const authenticated = await isAuthenticated()
-        if (!authenticated) {
-          router.push('/login')
-          return
-        }
-        setIsAuthorized(true)
-      } finally {
-        setIsChecking(false)
+      if (!isAuthenticated()) {
+        router.push('/login')
+        return
       }
+      setIsChecking(false)
     }
+    
     checkAuth()
   }, [pathname, router])
 
-  if (isChecking) {
+  // Show loading state while checking
+  if (isChecking && pathname !== '/login') {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
@@ -42,9 +40,6 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
     )
   }
 
-  if (!isAuthorized) {
-    return null
-  }
-
   return <>{children}</>
 }
+

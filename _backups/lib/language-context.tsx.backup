@@ -94,8 +94,7 @@ const translations: Record<Language, Record<string, string>> = {
     "je.lines": "Lines",
     "je.balanced": "Balanced",
     "je.notBalanced": "Not Balanced",
-    "je.unbalanced": "Unbalanced",
-
+    
     // Chart of Accounts
     "coa.title": "Chart of Accounts",
     "coa.addAccount": "Add Account",
@@ -513,8 +512,7 @@ const translations: Record<Language, Record<string, string>> = {
     "je.lines": "البنود",
     "je.balanced": "متوازن",
     "je.notBalanced": "غير متوازن",
-    "je.unbalanced": "غير متوازن",
-
+    
     // Chart of Accounts
     "coa.title": "دليل الحسابات",
     "coa.addAccount": "إضافة حساب",
@@ -620,7 +618,6 @@ const translations: Record<Language, Record<string, string>> = {
     "je.difference": "الفرق",
     "je.balanced": "متوازن",
     "je.notBalanced": "غير متوازن",
-    "je.unbalanced": "غير متوازن",
     "je.save": "حفظ القيد",
     "je.cancel": "إلغاء",
     "je.delete": "حذف القيد",

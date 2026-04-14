@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect } from "react"
 import { Search, Filter, FileText, Eye, RotateCcw, Image, Plus, Calendar, DollarSign, Users, AlertCircle, CheckCircle, Clock, Edit, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -16,18 +16,6 @@ import { supabase } from "@/lib/supabase"
 import Link from "next/link"
 import { getCurrentUser, canEditAccountingData } from "@/lib/auth-utils"
 import { useLanguage } from "@/lib/language-context"
-
-// Standalone utility — computes actual balance from line data, never trusts the DB flag
-function computeIsBalanced(entry: any): boolean {
-  const lines = entry.journal_entry_lines
-  if (!lines || lines.length === 0) return false
-  let td = 0, tc = 0
-  for (const l of lines) {
-    td += parseFloat(String(l.debit_amount  ?? 0)) || 0
-    tc += parseFloat(String(l.credit_amount ?? 0)) || 0
-  }
-  return Math.abs(td - tc) < 0.01 && td > 0
-}
 
 export default function JournalEntriesList() {
   const { language, t } = useLanguage()
@@ -80,20 +68,10 @@ export default function JournalEntriesList() {
         const data = await AccountingService.getJournalEntries(filterParams)
         setEntries(data || [])
 
-        // Calculate statistics — always compute from actual lines (header totals can be stale)
-        const totalDebits = (data || []).reduce((sum, entry) => {
-          const lines = entry.journal_entry_lines || []
-          const td = lines.reduce((s: number, l: any) => s + (parseFloat(String(l.debit_amount ?? 0)) || 0), 0)
-          return sum + (td > 0 ? td : (entry.total_debit || 0))
-        }, 0)
-        const totalCredits = (data || []).reduce((sum, entry) => {
-          const lines = entry.journal_entry_lines || []
-          const tc = lines.reduce((s: number, l: any) => s + (parseFloat(String(l.credit_amount ?? 0)) || 0), 0)
-          return sum + (tc > 0 ? tc : (entry.total_credit || 0))
-        }, 0)
-        const balancedEntries = (data || []).filter(entry => {
-          return computeIsBalanced(entry)
-        }).length
+        // Calculate statistics
+        const totalDebits = (data || []).reduce((sum, entry) => sum + (entry.total_debit || 0), 0)
+        const totalCredits = (data || []).reduce((sum, entry) => sum + (entry.total_credit || 0), 0)
+        const balancedEntries = (data || []).filter(entry => entry.is_balanced).length
         const entriesWithLines = (data || []).filter(entry => entry.journal_entry_lines && entry.journal_entry_lines.length > 0).length
         const entriesWithoutLines = (data || []).length - entriesWithLines
 
@@ -120,8 +98,15 @@ export default function JournalEntriesList() {
     loadWithDefaults()
   }, [])
 
+  // Add a separate useEffect to reload when filters change
+  useEffect(() => {
+    if (filters.startDate && filters.endDate) {
+      loadEntries()
+    }
+  }, [filters.startDate, filters.endDate])
+
   // Enhanced loadEntries function with statistics
-  const loadEntries = useCallback(async () => {
+  const loadEntries = async () => {
     try {
       setLoading(true)
       console.log("Loading entries with filters:", filters)
@@ -138,21 +123,13 @@ export default function JournalEntriesList() {
       const data = await AccountingService.getJournalEntries(filterParams)
       console.log("Loaded entries:", data)
       console.log("Number of entries loaded:", data?.length || 0)
-
+      
       setEntries(data || [])
 
-      // Calculate statistics — always compute from actual lines (header totals can be stale)
-      const totalDebits = (data || []).reduce((sum, entry) => {
-        const lines = entry.journal_entry_lines || []
-        const td = lines.reduce((s: number, l: any) => s + (parseFloat(String(l.debit_amount ?? 0)) || 0), 0)
-        return sum + (td > 0 ? td : (entry.total_debit || 0))
-      }, 0)
-      const totalCredits = (data || []).reduce((sum, entry) => {
-        const lines = entry.journal_entry_lines || []
-        const tc = lines.reduce((s: number, l: any) => s + (parseFloat(String(l.credit_amount ?? 0)) || 0), 0)
-        return sum + (tc > 0 ? tc : (entry.total_credit || 0))
-      }, 0)
-      const balancedEntries = (data || []).filter(entry => computeIsBalanced(entry)).length
+      // Calculate statistics
+      const totalDebits = (data || []).reduce((sum, entry) => sum + (entry.total_debit || 0), 0)
+      const totalCredits = (data || []).reduce((sum, entry) => sum + (entry.total_credit || 0), 0)
+      const balancedEntries = (data || []).filter(entry => entry.is_balanced).length
       const entriesWithLines = (data || []).filter(entry => entry.journal_entry_lines && entry.journal_entry_lines.length > 0).length
       const entriesWithoutLines = (data || []).length - entriesWithLines
 
@@ -174,16 +151,7 @@ export default function JournalEntriesList() {
     } finally {
       setLoading(false)
     }
-  }, [filters, toast])
-
-  // Reload when filters change
-  useEffect(() => {
-    if (filters.startDate && filters.endDate) {
-      loadEntries().catch((error) => {
-        console.error("Error loading entries:", error)
-      })
-    }
-  }, [filters.startDate, filters.endDate, loadEntries])
+  }
 
   const handleFilterChange = (field: string, value: string) =>
     setFilters((prev) => ({
@@ -199,11 +167,9 @@ export default function JournalEntriesList() {
   useEffect(() => {
     // Only reload if dates are set (to avoid loading before initial dates are set)
     if (filters.startDate || filters.endDate || (!filters.startDate && !filters.endDate)) {
-      loadEntries().catch((error) => {
-        console.error("Error loading entries:", error)
-      })
+      loadEntries()
     }
-  }, [filters.accountType, filters.searchTerm, filters.status, loadEntries])
+  }, [filters.accountType, filters.searchTerm, filters.status])
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString()
@@ -215,17 +181,6 @@ export default function JournalEntriesList() {
       currency: "USD",
     }).format(amount)
   }
-
-  // Apply status filter client-side using computed balance from actual lines
-  const filteredEntries = entries.filter(entry => {
-    if (filters.status === "All Statuses") return true
-    const hasLines = entry.journal_entry_lines && entry.journal_entry_lines.length > 0
-    if (filters.status === "Missing Lines") return !hasLines
-    const balanced = computeIsBalanced(entry)
-    if (filters.status === "Balanced") return hasLines && balanced
-    if (filters.status === "Unbalanced") return hasLines && !balanced
-    return true
-  })
 
   const getAccountTypeColor = (type: string) => {
     const colors = {
@@ -240,7 +195,7 @@ export default function JournalEntriesList() {
 
   const getStatusBadge = (entry: JournalEntry) => {
     const hasLines = entry.journal_entry_lines && entry.journal_entry_lines.length > 0
-
+    
     if (!hasLines) {
       return (
         <Badge variant="destructive" className="bg-orange-100 text-orange-800 border-orange-200">
@@ -249,9 +204,8 @@ export default function JournalEntriesList() {
         </Badge>
       )
     }
-
-    // Use computed balance from actual lines, not the DB flag
-    if (computeIsBalanced(entry)) {
+    
+    if (entry.is_balanced) {
       return (
         <Badge className="bg-green-100 text-green-800 border-green-200">
           <CheckCircle className="w-3 h-3 mr-1" />
@@ -259,7 +213,7 @@ export default function JournalEntriesList() {
         </Badge>
       )
     }
-
+    
     return (
       <Badge variant="destructive" className="bg-red-100 text-red-800 border-red-200">
         <AlertCircle className="w-3 h-3 mr-1" />
@@ -273,17 +227,59 @@ export default function JournalEntriesList() {
     try {
       console.log("Reversing journal entry:", entryId)
 
-      // Use AccountingService to reverse the entry
-      await AccountingService.reverseJournalEntry(entryId)
+      // Get the journal entry lines
+      const { data: lines, error: linesError } = await supabase
+        .from("journal_entry_lines")
+        .select("*")
+        .eq("journal_entry_id", entryId)
+
+      if (linesError) {
+        console.error("Error fetching journal entry lines:", linesError)
+        throw new Error("Failed to fetch journal entry lines")
+      }
+
+      if (!lines || lines.length === 0) {
+        throw new Error("No journal entry lines found to reverse")
+      }
+
+      // Update each line by swapping debit and credit amounts
+      for (const line of lines) {
+        const { error: updateError } = await supabase
+          .from("journal_entry_lines")
+          .update({
+            debit_amount: line.credit_amount,
+            credit_amount: line.debit_amount
+          })
+          .eq("id", line.id)
+
+        if (updateError) {
+          console.error("Error updating journal entry line:", updateError)
+          throw new Error("Failed to update journal entry line")
+        }
+      }
+
+      // Update the journal entry totals
+      const { error: entryError } = await supabase
+        .from("journal_entries")
+        .update({
+          total_debit: lines.reduce((sum, line) => sum + line.credit_amount, 0),
+          total_credit: lines.reduce((sum, line) => sum + line.debit_amount, 0)
+        })
+        .eq("id", entryId)
+
+      if (entryError) {
+        console.error("Error updating journal entry totals:", entryError)
+        throw new Error("Failed to update journal entry totals")
+      }
 
       console.log("Journal entry reversed successfully")
-
+      
       toast({
         title: "Success",
         description: "Journal entry debit and credit amounts have been swapped",
       })
       // Reload entries to show the updated amounts
-      await loadEntries()
+      loadEntries()
     } catch (error) {
       console.error("Error reversing journal entry:", error)
       toast({
@@ -326,11 +322,9 @@ export default function JournalEntriesList() {
         title: "Success",
         description: "Journal entry deleted successfully",
       })
-
-      // Reload entries with error handling
-      await loadEntries().catch((error) => {
-        console.error("Error reloading entries after delete:", error)
-      })
+      
+      // Reload entries
+      loadEntries()
     } catch (error) {
       console.error("Error deleting journal entry:", error)
       toast({
@@ -338,34 +332,6 @@ export default function JournalEntriesList() {
         description: error instanceof Error ? error.message : "Failed to delete journal entry",
         variant: "destructive",
       })
-    }
-  }
-
-  const handleRepairBalanceFlags = async () => {
-    try {
-      setLoading(true)
-      const result = await AccountingService.repairBalanceFlags()
-      await loadEntries()
-      if (result.stillUnbalanced.length > 0) {
-        toast({
-          title: language === "ar" ? "تم الإصلاح — توجد قيود غير متوازنة" : `Repaired ${result.fixed} flags — ${result.stillUnbalanced.length} entries still unbalanced`,
-          description: (language === "ar" ? "القيود غير المتوازنة: " : "Unbalanced entries: ") + result.stillUnbalanced.join(", "),
-          variant: "destructive",
-        })
-      } else {
-        toast({
-          title: language === "ar" ? "تم الإصلاح بنجاح" : `Fixed ${result.fixed} flags — all ${result.checked} entries balanced`,
-          description: language === "ar" ? "جميع القيود متوازنة الآن" : "All entries now show correct balance status",
-        })
-      }
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to repair flags",
-        variant: "destructive",
-      })
-    } finally {
-      setLoading(false)
     }
   }
 
@@ -379,18 +345,12 @@ export default function JournalEntriesList() {
         </div>
         <div className="flex gap-3">
           {canEditAccountingData(getCurrentUser()) && (
-            <>
-              <Button variant="outline" onClick={handleRepairBalanceFlags} disabled={loading} title="Recalculate is_balanced flags from actual line data">
-                <AlertCircle className="h-4 w-4 mr-2 text-orange-500" />
-                {language === "ar" ? "إصلاح حالة التوازن" : "Repair Balance Flags"}
+            <Link href="/journal-entries">
+              <Button>
+                <Plus className="h-4 w-4 mr-2" />
+                New Entry
               </Button>
-              <Link href="/journal-entries">
-                <Button>
-                  <Plus className="h-4 w-4 mr-2" />
-                  New Entry
-                </Button>
-              </Link>
-            </>
+            </Link>
           )}
         </div>
       </div>
@@ -547,18 +507,10 @@ export default function JournalEntriesList() {
                     searchTerm: undefined,
                   })
                   setEntries(data || [])
-
-                  const totalDebits = (data || []).reduce((sum, entry) => {
-                    const lines = entry.journal_entry_lines || []
-                    const td = lines.reduce((s: number, l: any) => s + (parseFloat(String(l.debit_amount ?? 0)) || 0), 0)
-                    return sum + (td > 0 ? td : (entry.total_debit || 0))
-                  }, 0)
-                  const totalCredits = (data || []).reduce((sum, entry) => {
-                    const lines = entry.journal_entry_lines || []
-                    const tc = lines.reduce((s: number, l: any) => s + (parseFloat(String(l.credit_amount ?? 0)) || 0), 0)
-                    return sum + (tc > 0 ? tc : (entry.total_credit || 0))
-                  }, 0)
-                  const balancedEntries = (data || []).filter(entry => computeIsBalanced(entry)).length
+                  
+                  const totalDebits = (data || []).reduce((sum, entry) => sum + (entry.total_debit || 0), 0)
+                  const totalCredits = (data || []).reduce((sum, entry) => sum + (entry.total_credit || 0), 0)
+                  const balancedEntries = (data || []).filter(entry => entry.is_balanced).length
                   const entriesWithLines = (data || []).filter(entry => entry.journal_entry_lines && entry.journal_entry_lines.length > 0).length
                   const entriesWithoutLines = (data || []).length - entriesWithLines
 
@@ -595,7 +547,7 @@ export default function JournalEntriesList() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <FileText className="h-5 w-5" />
-            {t("je.title")} ({filteredEntries.length})
+            {t("je.title")} ({entries.length})
           </CardTitle>
           <CardDescription>
             {language === "ar" ? "تفاصيل كاملة لجميع قيود اليومية مع وظائف محسنة" : "Complete details of all journal entries with enhanced functionality"}
@@ -628,16 +580,14 @@ export default function JournalEntriesList() {
                       </div>
                     </TableCell>
                   </TableRow>
-                ) : filteredEntries.length === 0 ? (
+                ) : entries.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={10} className="text-center py-8 text-gray-500">
-                      {filters.status !== "All Statuses"
-                        ? (language === "ar" ? "لا توجد قيود تطابق حالة التصفية" : "No entries match the selected status filter")
-                        : t("je.noEntries")}
+                      {t("je.noEntries")}
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filteredEntries.map((entry) => (
+                  entries.map((entry) => (
                     <TableRow key={entry.id} className="hover:bg-gray-50">
                       <TableCell className="font-mono font-medium">
                         {entry.entry_number}
@@ -707,24 +657,14 @@ export default function JournalEntriesList() {
                         )}
                       </TableCell>
                       <TableCell className="text-right">
-                        {(() => {
-                          // Compute from actual lines — header total_debit/total_credit can be stale
-                          const lines = entry.journal_entry_lines || []
-                          let td = 0, tc = 0
-                          for (const l of lines) {
-                            td += parseFloat(String(l.debit_amount  ?? 0)) || 0
-                            tc += parseFloat(String(l.credit_amount ?? 0)) || 0
-                          }
-                          // Fall back to header value if no lines fetched
-                          const debit  = td  > 0 ? td  : (entry.total_debit  || 0)
-                          const credit = tc  > 0 ? tc  : (entry.total_credit || 0)
-                          return (
-                            <div className="flex flex-col">
-                              <span className="text-green-600 font-medium">{formatCurrency(debit)}</span>
-                              <span className="text-blue-600 font-medium">{formatCurrency(credit)}</span>
-                            </div>
-                          )
-                        })()}
+                        <div className="flex flex-col">
+                          <span className="text-green-600 font-medium">
+                            {formatCurrency(entry.total_debit)}
+                          </span>
+                          <span className="text-blue-600 font-medium">
+                            {formatCurrency(entry.total_credit)}
+                          </span>
+                        </div>
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">

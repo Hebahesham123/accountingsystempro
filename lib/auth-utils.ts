@@ -1,6 +1,6 @@
 // Authentication and Permission Utilities
 
-export type UserRole = 'admin' | 'accountant' | 'user'
+export type UserRole = "admin" | "accountant" | "user"
 
 export interface User {
   id: string
@@ -12,122 +12,158 @@ export interface User {
   updated_at?: string
 }
 
-// Get current user from localStorage (simple implementation)
+// ============================================
+// Session Management
+// ============================================
+
 export const getCurrentUser = (): User | null => {
-  if (typeof window === 'undefined') return null
-  
-  const userStr = localStorage.getItem('current_user')
+  if (typeof window === "undefined") return null
+
+  const userStr = localStorage.getItem("current_user")
   if (!userStr) return null
-  
+
   try {
-    return JSON.parse(userStr) as User
+    const parsed = JSON.parse(userStr)
+    if (!parsed || !parsed.id || !parsed.email || !parsed.role) {
+      localStorage.removeItem("current_user")
+      return null
+    }
+    if (!["admin", "accountant", "user"].includes(parsed.role)) {
+      localStorage.removeItem("current_user")
+      return null
+    }
+    return parsed as User
   } catch {
+    localStorage.removeItem("current_user")
     return null
   }
 }
 
-// Set current user
 export const setCurrentUser = (user: User | null): void => {
-  if (typeof window === 'undefined') return
-  
+  if (typeof window === "undefined") return
+
   if (user) {
-    localStorage.setItem('current_user', JSON.stringify(user))
+    const safeUser: User = {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      role: user.role,
+      created_at: user.created_at,
+      updated_at: user.updated_at,
+    }
+    localStorage.setItem("current_user", JSON.stringify(safeUser))
   } else {
-    localStorage.removeItem('current_user')
+    localStorage.removeItem("current_user")
   }
 }
 
-// Check if user has permission to edit accounting data (accountants only, NOT admin)
+// ============================================
+// Permission Checks
+// ============================================
+
 export const canEditAccountingData = (user: User | null): boolean => {
   if (!user) return false
-  return user.role === 'accountant'
+  return user.role === "accountant"
 }
 
-// Legacy function for backward compatibility - now only accountants can edit
 export const canEdit = (user: User | null): boolean => {
   return canEditAccountingData(user)
 }
 
-// Check if user can edit users (admin only)
 export const canEditUsers = (user: User | null): boolean => {
   if (!user) return false
-  return user.role === 'admin'
+  return user.role === "admin"
 }
 
-// Check if user can view accounting data (admin, accountants, and users)
 export const canViewAccountingData = (user: User | null): boolean => {
   if (!user) return false
-  return user.role === 'admin' || user.role === 'accountant' || user.role === 'user'
+  return user.role === "admin" || user.role === "accountant" || user.role === "user"
 }
 
-// Check if user can view purchase orders (all authenticated users)
 export const canViewPurchaseOrders = (user: User | null): boolean => {
   return user !== null
 }
 
-// Check if user can create purchase orders (all authenticated users)
 export const canCreatePurchaseOrders = (user: User | null): boolean => {
   return user !== null
 }
 
-// Check if user can approve purchase orders (admin and accountants)
 export const canApprovePurchaseOrders = (user: User | null): boolean => {
   if (!user) return false
-  return user.role === 'admin' || user.role === 'accountant'
+  return user.role === "admin" || user.role === "accountant"
 }
 
-// Check if user has permission to view (all authenticated users)
 export const canView = (user: User | null): boolean => {
   return user !== null
 }
 
-// Check if user is admin
 export const isAdmin = (user: User | null): boolean => {
   if (!user) return false
-  return user.role === 'admin'
+  return user.role === "admin"
 }
 
-// Check if user is accountant
 export const isAccountant = (user: User | null): boolean => {
   if (!user) return false
-  return user.role === 'accountant'
+  return user.role === "accountant"
 }
 
-// Check if user is regular user (view only, can create purchase orders)
 export const isRegularUser = (user: User | null): boolean => {
   if (!user) return false
-  return user.role === 'user'
+  return user.role === "user"
 }
 
-// Check if user can delete (accountants only)
 export const canDelete = (user: User | null): boolean => {
   return canEditAccountingData(user)
 }
 
-// Get user display name
 export const getUserDisplayName = (user: User | null): string => {
-  if (!user) return 'Unknown User'
-  return user.name || user.email || 'Unknown User'
+  if (!user) return "Unknown User"
+  return user.name || user.email || "Unknown User"
 }
 
-// Login with email and PIN
+// ============================================
+// Login / Logout with rate limiting
+// ============================================
+
+const loginAttempts = new Map<string, { count: number; lastAttempt: number }>()
+const MAX_ATTEMPTS = 10
+const LOCKOUT_MS = 60_000
+
 export const login = async (email: string, pin: string): Promise<User | null> => {
-  if (typeof window === 'undefined') return null
-  
-  try {
-    const { supabase } = await import('@/lib/supabase')
-    const { data, error } = await supabase
-      .from('users')
-      .select('*')
-      .eq('email', email.toLowerCase().trim())
-      .eq('pin', pin)
-      .single()
-    
-    if (error || !data) {
+  if (typeof window === "undefined") return null
+
+  const normalizedEmail = email.toLowerCase().trim()
+
+  // Rate limiting
+  const attempts = loginAttempts.get(normalizedEmail)
+  if (attempts) {
+    const timeSince = Date.now() - attempts.lastAttempt
+    if (attempts.count >= MAX_ATTEMPTS && timeSince < LOCKOUT_MS) {
+      console.warn("Too many login attempts. Please wait.")
       return null
     }
-    
-    // Don't store PIN in localStorage
+    if (timeSince >= LOCKOUT_MS) {
+      loginAttempts.delete(normalizedEmail)
+    }
+  }
+
+  try {
+    const { supabase } = await import("@/lib/supabase")
+    const { data, error } = await supabase
+      .from("users")
+      .select("*")
+      .eq("email", normalizedEmail)
+      .eq("pin", pin.trim())
+      .single()
+
+    if (error || !data) {
+      const current = loginAttempts.get(normalizedEmail) || { count: 0, lastAttempt: 0 }
+      loginAttempts.set(normalizedEmail, { count: current.count + 1, lastAttempt: Date.now() })
+      return null
+    }
+
+    loginAttempts.delete(normalizedEmail)
+
     const user: User = {
       id: data.id,
       email: data.email,
@@ -136,25 +172,22 @@ export const login = async (email: string, pin: string): Promise<User | null> =>
       created_at: data.created_at,
       updated_at: data.updated_at,
     }
-    
+
     setCurrentUser(user)
     return user
   } catch (error) {
-    console.error('Login error:', error)
+    console.error("Login error:", error)
     return null
   }
 }
 
-// Logout
 export const logout = (): void => {
   setCurrentUser(null)
-  if (typeof window !== 'undefined') {
-    window.location.href = '/login'
+  if (typeof window !== "undefined") {
+    window.location.href = "/login"
   }
 }
 
-// Check if user is authenticated
 export const isAuthenticated = (): boolean => {
   return getCurrentUser() !== null
 }
-

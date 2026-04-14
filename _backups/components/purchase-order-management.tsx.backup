@@ -568,7 +568,7 @@ export default function PurchaseOrderManagement() {
                                       variant="ghost"
                                       size="sm"
                                       className="text-blue-600 hover:text-blue-700"
-                                      onClick={() => handleApprove(po.id, 'accountant')}
+                                      onClick={() => handleApprove(po.id, 'admin')}
                                       title="Accountant Approval (First Approval)"
                                     >
                                       <CheckCircle className="h-4 w-4 mr-1" />
@@ -607,7 +607,7 @@ export default function PurchaseOrderManagement() {
                                   variant="ghost"
                                   size="sm"
                                   className="text-green-600 hover:text-green-700"
-                                  onClick={() => handleApprove(po.id, 'admin')}
+                                  onClick={() => handleApprove(po.id, 'accountant')}
                                   title="Admin Second Approval"
                                 >
                                   <CheckCircle className="h-4 w-4 mr-1" />
