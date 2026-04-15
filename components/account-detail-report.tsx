@@ -24,7 +24,46 @@ export default function AccountDetailReport({ accountId, accountCode, accountNam
   const [startDate, setStartDate] = useState("")
   const [endDate, setEndDate] = useState("")
   const [expandedSubAccounts, setExpandedSubAccounts] = useState<Set<string>>(new Set())
+  const [expandedDescs, setExpandedDescs] = useState<Set<string>>(new Set())
   const { toast } = useToast()
+
+  // Show first 2 words + "…" — click to expand/collapse full text
+  const DescCell = ({ id, text }: { id: string; text: string }) => {
+    const words = (text || "").trim().split(/\s+/)
+    const isLong = words.length > 2
+    const isExpanded = expandedDescs.has(id)
+    const toggleDesc = () => {
+      if (!isLong) return
+      setExpandedDescs(prev => {
+        const next = new Set(prev)
+        if (next.has(id)) next.delete(id)
+        else next.add(id)
+        return next
+      })
+    }
+    if (!isLong) {
+      return <TableCell className="max-w-[160px]">{text || "-"}</TableCell>
+    }
+    return (
+      <TableCell
+        className="max-w-[160px] cursor-pointer select-none"
+        onClick={toggleDesc}
+        title={text}
+      >
+        {isExpanded ? (
+          <span className="text-gray-800 leading-snug whitespace-normal break-words text-xs">
+            {text}
+            <span className="ml-1 text-blue-500 font-semibold text-xs">▲</span>
+          </span>
+        ) : (
+          <span className="flex items-center gap-1">
+            <span className="font-medium text-gray-900 truncate">{words.slice(0, 2).join(" ")}</span>
+            <span className="text-blue-500 font-bold text-xs shrink-0">…</span>
+          </span>
+        )}
+      </TableCell>
+    )
+  }
 
   useEffect(() => {
     // Set default dates (current year)
@@ -295,9 +334,9 @@ export default function AccountDetailReport({ accountId, accountCode, accountNam
                   <TableBody>
                     {report.transactions.map((transaction) => (
                       <TableRow key={transaction.id}>
-                        <TableCell>{formatDate(transaction.entry_date)}</TableCell>
-                        <TableCell className="font-mono">{transaction.entry_number}</TableCell>
-                        <TableCell>{transaction.description}</TableCell>
+                        <TableCell className="whitespace-nowrap">{formatDate(transaction.entry_date)}</TableCell>
+                        <TableCell className="font-mono whitespace-nowrap">{transaction.entry_number}</TableCell>
+                        <DescCell id={transaction.id} text={transaction.description} />
                         <TableCell>{transaction.reference || "-"}</TableCell>
                         <TableCell className="text-right">
                           {transaction.debit_amount > 0 ? formatCurrency(transaction.debit_amount) : "-"}
@@ -396,9 +435,9 @@ export default function AccountDetailReport({ accountId, accountCode, accountNam
                                 <TableBody>
                                   {subAccount.transactions.slice(0, 5).map((transaction) => (
                                     <TableRow key={transaction.id}>
-                                      <TableCell className="text-sm">{formatDate(transaction.entry_date)}</TableCell>
-                                      <TableCell className="text-sm font-mono">{transaction.entry_number}</TableCell>
-                                      <TableCell className="text-sm">{transaction.description}</TableCell>
+                                      <TableCell className="text-sm whitespace-nowrap">{formatDate(transaction.entry_date)}</TableCell>
+                                      <TableCell className="text-sm font-mono whitespace-nowrap">{transaction.entry_number}</TableCell>
+                                      <DescCell id={`sub-${transaction.id}`} text={transaction.description} />
                                       <TableCell className="text-sm text-right">
                                         {transaction.debit_amount > 0 ? formatCurrency(transaction.debit_amount) : "-"}
                                       </TableCell>

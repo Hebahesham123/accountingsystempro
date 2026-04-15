@@ -28,19 +28,7 @@ type BalanceSheetAccount = {
 export default function FinancialReports() {
   const { language, t } = useLanguage()
 
-  // ── Permission check ────────────────────────────────────────────────────────
-  const currentUser = getCurrentUser()
-  if (!currentUser || !canViewAccountingData(currentUser)) {
-    return (
-      <div className="flex items-center justify-center h-64 flex-col gap-4">
-        <span className="text-4xl">🔒</span>
-        <p className="text-xl font-semibold text-gray-700">Access Restricted</p>
-        <p className="text-gray-500">You do not have permission to view financial reports.</p>
-      </div>
-    )
-  }
-  // ────────────────────────────────────────────────────────────────────────────
-
+  // ── All hooks MUST be declared before any conditional return (Rules of Hooks) ─
   const [balanceSheet, setBalanceSheet] = useState<any>(null)
   const [incomeStatement, setIncomeStatement] = useState<any>(null)
   const [cashFlowStatement, setCashFlowStatement] = useState<CashFlowStatement | null>(null)
@@ -55,7 +43,22 @@ export default function FinancialReports() {
   const [expandedEquity, setExpandedEquity] = useState<Set<string>>(new Set())
   const [expandedRevenue, setExpandedRevenue] = useState<Set<string>>(new Set())
   const [expandedExpenses, setExpandedExpenses] = useState<Set<string>>(new Set())
+  const [bsDiagnostic, setBsDiagnostic] = useState<any>(null)
+  const [bsDiagLoading, setBsDiagLoading] = useState(false)
   const { toast } = useToast()
+
+  // ── Permission check (after all hooks) ─────────────────────────────────────
+  const currentUser = getCurrentUser()
+  if (!currentUser || !canViewAccountingData(currentUser)) {
+    return (
+      <div className="flex items-center justify-center h-64 flex-col gap-4">
+        <span className="text-4xl">🔒</span>
+        <p className="text-xl font-semibold text-gray-700">Access Restricted</p>
+        <p className="text-gray-500">You do not have permission to view financial reports.</p>
+      </div>
+    )
+  }
+  // ────────────────────────────────────────────────────────────────────────────
 
   useEffect(() => {
     // Set default dates for income statement (current year)
@@ -269,6 +272,87 @@ export default function FinancialReports() {
       currency: "USD",
     }).format(amount)
   }
+
+  // ── Balance Sheet Diagnostic ─────────────────────────────────────────────────
+  const runBsDiagnostic = async () => {
+    try {
+      setBsDiagLoading(true)
+      setBsDiagnostic(null)
+      const { supabase: sb } = await import("@/lib/supabase")
+      const safeN = (v: any) => { const n = parseFloat(String(v)); return isNaN(n) ? 0 : Math.round(n * 100) / 100 }
+
+      // Fetch accounts with types
+      const { data: accs } = await sb.from("accounts")
+        .select("id,code,name,parent_account_id,is_active,account_types(id,name,normal_balance)")
+        .order("code")
+      // Fetch ALL lines (paginated)
+      let lines: any[] = [], offs = 0
+      while (true) {
+        const { data } = await sb.from("journal_entry_lines")
+          .select("account_id,debit_amount,credit_amount").range(offs, offs + 4999)
+        if (!data || !data.length) break
+        lines = lines.concat(data); offs += 5000; if (data.length < 5000) break
+      }
+      // Fetch opening balances
+      const { data: obs } = await sb.from("opening_balances").select("account_id,balance")
+      const obMap: Record<string, number> = {}
+      ;(obs || []).forEach((o: any) => { obMap[o.account_id] = safeN(o.balance) })
+
+      // Aggregate lines per account
+      const lineTotals: Record<string, { d: number; c: number }> = {}
+      for (const l of lines) {
+        if (!lineTotals[l.account_id]) lineTotals[l.account_id] = { d: 0, c: 0 }
+        lineTotals[l.account_id].d += safeN(l.debit_amount)
+        lineTotals[l.account_id].c += safeN(l.credit_amount)
+      }
+
+      // Compute balance per account
+      const parentIds = new Set((accs || []).map((a: any) => a.parent_account_id).filter(Boolean))
+      const byType: Record<string, { code: string; name: string; bal: number }[]> = {
+        Asset: [], Liability: [], Equity: [], Revenue: [], Expense: [], Unknown: []
+      }
+      const totals: Record<string, number> = { Asset: 0, Liability: 0, Equity: 0, Revenue: 0, Expense: 0, Unknown: 0 }
+
+      for (const a of (accs || [])) {
+        if (parentIds.has(a.id)) continue  // skip parent accounts in direct sum
+        const lt = lineTotals[a.id] || { d: 0, c: 0 }
+        const ob = obMap[a.id] || 0
+        const type: any = Array.isArray(a.account_types) ? a.account_types[0] : a.account_types
+        const typeName: string = type?.name || "Unknown"
+        const nb: string = type?.normal_balance || "debit"
+        const bal = safeN(ob + (nb === "debit" ? lt.d - lt.c : lt.c - lt.d))
+        const key = ["Asset","Liability","Equity","Revenue","Expense"].includes(typeName) ? typeName : "Unknown"
+        byType[key].push({ code: a.code, name: a.name, bal })
+        totals[key] += bal
+      }
+
+      const netIncome = safeN(totals.Revenue - totals.Expense)
+      const rhs = safeN(totals.Liability + totals.Equity + netIncome)
+      const diff = safeN(totals.Asset - rhs)
+      const obNetSum = (obs || []).reduce((s: number, o: any) => s + safeN(o.balance), 0)
+
+      // Entries with wrong is_balanced flag
+      const { data: flaggedJEs } = await sb.from("journal_entries")
+        .select("id,entry_number,entry_date").eq("is_balanced", false)
+
+      setBsDiagnostic({
+        totalAssets: totals.Asset, totalLiabilities: totals.Liability,
+        totalEquity: totals.Equity, totalRevenue: totals.Revenue, totalExpenses: totals.Expense,
+        netIncome, rhs, diff, balanced: Math.abs(diff) < 1,
+        unknownAccounts: byType.Unknown,
+        negativeAssets: byType.Asset.filter(a => a.bal < -0.01),
+        negativeLiabilities: byType.Liability.filter(a => a.bal < -0.01),
+        obNetSum, obsCount: (obs || []).length,
+        flaggedJEs: flaggedJEs || [],
+        assetAccounts: byType.Asset, liabilityAccounts: byType.Liability, equityAccounts: byType.Equity,
+      })
+    } catch (err) {
+      toast({ title: "Diagnostic failed", description: String(err), variant: "destructive" })
+    } finally {
+      setBsDiagLoading(false)
+    }
+  }
+  // ─────────────────────────────────────────────────────────────────────────────
 
   const exportBalanceSheet = () => {
     if (!balanceSheet) return
@@ -506,6 +590,10 @@ export default function FinancialReports() {
                   <CardDescription>{t("fr.assetsEquals")}</CardDescription>
                 </div>
                 <div className="flex gap-2">
+                  <Button onClick={runBsDiagnostic} variant="outline" size="sm" disabled={bsDiagLoading}
+                    className="border-orange-300 text-orange-700 hover:bg-orange-50">
+                    {bsDiagLoading ? "⏳ Diagnosing..." : "🔍 Diagnose"}
+                  </Button>
                   <Button onClick={exportBalanceSheet} variant="outline" size="sm" disabled={!balanceSheet}>
                     <Download className="h-4 w-4 mr-2" />
                     {t("fr.exportCSV")}
@@ -527,6 +615,103 @@ export default function FinancialReports() {
                   {loading ? "Loading..." : "Generate Report"}
                 </Button>
               </div>
+
+              {/* ── Balance Sheet Diagnostic Panel ─────────────────────────────── */}
+              {bsDiagnostic && (
+                <div className={`mb-6 rounded-xl border-2 p-5 ${bsDiagnostic.balanced ? 'bg-green-50 border-green-300' : 'bg-red-50 border-red-300'}`}>
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="font-bold text-lg">{bsDiagnostic.balanced ? '✅ Balance Sheet is BALANCED' : '❌ Balance Sheet is NOT BALANCED'}</h3>
+                    <button onClick={() => setBsDiagnostic(null)} className="text-gray-400 hover:text-gray-700 text-xl leading-none">✕</button>
+                  </div>
+
+                  {/* Equation breakdown */}
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+                    {[
+                      { label: 'Total Assets', val: bsDiagnostic.totalAssets, color: '#16a34a' },
+                      { label: 'Total Liabilities', val: bsDiagnostic.totalLiabilities, color: '#dc2626' },
+                      { label: 'Total Equity', val: bsDiagnostic.totalEquity, color: '#2563eb' },
+                      { label: 'Net Income (YTD)', val: bsDiagnostic.netIncome, color: bsDiagnostic.netIncome >= 0 ? '#16a34a' : '#dc2626' },
+                    ].map(({label, val, color}) => (
+                      <div key={label} className="bg-white rounded-lg p-3 border shadow-sm text-center">
+                        <div className="text-xs text-gray-500 mb-1">{label}</div>
+                        <div className="font-bold text-sm" style={{color}}>{formatCurrency(val)}</div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="bg-white rounded-lg p-4 border text-sm mb-4">
+                    <div className="flex justify-between mb-1"><span className="font-semibold">Assets (A)</span><span className="font-mono">{formatCurrency(bsDiagnostic.totalAssets)}</span></div>
+                    <div className="flex justify-between mb-1"><span className="text-gray-500">Liabilities + Equity + Net Income (L+E+NI)</span><span className="font-mono">{formatCurrency(bsDiagnostic.rhs)}</span></div>
+                    <div className={`flex justify-between font-bold pt-2 border-t ${bsDiagnostic.balanced ? 'text-green-700' : 'text-red-700'}`}>
+                      <span>Difference (A − L−E−NI)</span>
+                      <span className="font-mono">{formatCurrency(Math.abs(bsDiagnostic.diff))}{bsDiagnostic.diff > 0 ? ' (Assets too high)' : bsDiagnostic.diff < 0 ? ' (Assets too low)' : ''}</span>
+                    </div>
+                  </div>
+
+                  {/* Causes */}
+                  {!bsDiagnostic.balanced && (
+                    <div className="space-y-3">
+                      <h4 className="font-semibold text-red-800">📋 Likely Causes & What the Accountant Should Do:</h4>
+
+                      {bsDiagnostic.unknownAccounts?.length > 0 && (
+                        <div className="bg-red-100 rounded-lg p-3 border border-red-200">
+                          <p className="font-semibold text-red-800 mb-1">⚠️ {bsDiagnostic.unknownAccounts.length} account(s) with UNKNOWN TYPE — excluded from balance sheet</p>
+                          <p className="text-sm text-red-700 mb-2">These accounts have transactions but no recognised account type. They are completely missing from the balance sheet calculation.</p>
+                          <p className="text-sm font-semibold text-red-800">👉 Fix: Go to <strong>Chart of Accounts</strong> → Edit each account below → assign the correct account type (Asset / Liability / Equity / Revenue / Expense)</p>
+                          <div className="mt-2 text-xs font-mono bg-white rounded p-2">
+                            {bsDiagnostic.unknownAccounts.map((a: any) => (
+                              <div key={a.code}>{a.code} | {a.name} | Balance: {formatCurrency(a.bal)}</div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {Math.abs(bsDiagnostic.obNetSum) > 0.01 && (
+                        <div className="bg-yellow-100 rounded-lg p-3 border border-yellow-200">
+                          <p className="font-semibold text-yellow-800 mb-1">⚠️ Opening Balances are NOT balanced (net = {formatCurrency(bsDiagnostic.obNetSum)})</p>
+                          <p className="text-sm text-yellow-700 mb-1">The sum of all opening balances should be zero (debits = credits). A non-zero sum directly causes the balance sheet to not balance.</p>
+                          <p className="text-sm font-semibold text-yellow-800">👉 Fix: Go to <strong>Opening Balances</strong> screen → review all opening balances → make sure they balance (total debits = total credits).</p>
+                        </div>
+                      )}
+
+                      {bsDiagnostic.flaggedJEs?.length > 0 && (
+                        <div className="bg-orange-100 rounded-lg p-3 border border-orange-200">
+                          <p className="font-semibold text-orange-800 mb-1">⚠️ {bsDiagnostic.flaggedJEs.length} journal entr{bsDiagnostic.flaggedJEs.length === 1 ? 'y' : 'ies'} flagged as is_balanced=false in database</p>
+                          <p className="text-sm text-orange-700 mb-1">These entries have unequal debits and credits — they directly cause the balance sheet imbalance.</p>
+                          <p className="text-sm font-semibold text-orange-800">👉 Fix: Go to <strong>Journal Entries</strong> → click <strong>"Repair Balance Flags"</strong> → use <strong>Status → Unbalanced</strong> filter → edit each entry and add the missing debit or credit line.</p>
+                          <div className="mt-2 text-xs font-mono bg-white rounded p-2">
+                            {bsDiagnostic.flaggedJEs.slice(0, 10).map((e: any) => <div key={e.id}>{e.entry_number} — {e.entry_date}</div>)}
+                            {bsDiagnostic.flaggedJEs.length > 10 && <div>...and {bsDiagnostic.flaggedJEs.length - 10} more</div>}
+                          </div>
+                        </div>
+                      )}
+
+                      {bsDiagnostic.negativeAssets?.length > 0 && (
+                        <div className="bg-blue-50 rounded-lg p-3 border border-blue-200">
+                          <p className="font-semibold text-blue-800 mb-1">ℹ️ {bsDiagnostic.negativeAssets.length} asset account(s) show a negative balance</p>
+                          <p className="text-sm text-blue-700 mb-1">Asset accounts normally have positive balances (debit &gt; credit). A negative balance means more credits than debits — could be a contra-asset (like Accumulated Depreciation) or a data entry error.</p>
+                          <p className="text-sm font-semibold text-blue-800">👉 Review: Check if these are contra-asset accounts (correct) or if they were entered with the wrong sign (error).</p>
+                          <div className="mt-2 text-xs font-mono bg-white rounded p-2">
+                            {bsDiagnostic.negativeAssets.map((a: any) => <div key={a.code}>{a.code} | {a.name} | {formatCurrency(a.bal)}</div>)}
+                          </div>
+                        </div>
+                      )}
+
+                      {bsDiagnostic.unknownAccounts?.length === 0 && Math.abs(bsDiagnostic.obNetSum) <= 0.01 && bsDiagnostic.flaggedJEs?.length === 0 && (
+                        <div className="bg-gray-100 rounded-lg p-3 border">
+                          <p className="font-semibold text-gray-700 mb-1">ℹ️ No obvious cause found automatically</p>
+                          <p className="text-sm text-gray-600">The difference of {formatCurrency(Math.abs(bsDiagnostic.diff))} may be caused by transactions that are individually balanced but classified under account types not captured in the balance sheet. Please review the Revenue and Expense accounts — their net income ({formatCurrency(bsDiagnostic.netIncome)}) is added to equity. If Revenue or Expenses are recorded in accounts classified as Asset/Liability by mistake, the equation will be off.</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {bsDiagnostic.balanced && (
+                    <p className="text-green-700 text-sm">✅ Assets ({formatCurrency(bsDiagnostic.totalAssets)}) = Liabilities + Equity + Net Income ({formatCurrency(bsDiagnostic.rhs)}). The balance sheet equation is correct.</p>
+                  )}
+                </div>
+              )}
+              {/* ──────────────────────────────────────────────────────────────── */}
 
               {balanceSheet && (
                 <div className="space-y-6">

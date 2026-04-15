@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import React, { useState, useEffect, useCallback } from "react"
 import { Search, Filter, FileText, Eye, RotateCcw, Image, Plus, Calendar, DollarSign, Users, AlertCircle, CheckCircle, Clock, Edit, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -813,16 +813,15 @@ export default function JournalEntriesList() {
             {Array.from({ length: Math.ceil(filteredEntries.length / PAGE_SIZE) }, (_, i) => i + 1)
               .filter(p => p === 1 || p === Math.ceil(filteredEntries.length / PAGE_SIZE) || Math.abs(p - currentPage) <= 2)
               .map((p, idx, arr) => (
-                <>
-                  {idx > 0 && arr[idx - 1] !== p - 1 && <span key={`ellipsis-${p}`} className="px-2 py-1 text-sm text-muted-foreground">…</span>}
+                <React.Fragment key={p}>
+                  {idx > 0 && arr[idx - 1] !== p - 1 && <span className="px-2 py-1 text-sm text-muted-foreground">…</span>}
                   <button
-                    key={p}
                     className={`px-3 py-1 rounded border text-sm ${p === currentPage ? "bg-primary text-white border-primary" : ""}`}
                     onClick={() => setCurrentPage(p)}
                   >
                     {p}
                   </button>
-                </>
+                </React.Fragment>
               ))}
             <button
               className="px-3 py-1 rounded border text-sm disabled:opacity-40"
