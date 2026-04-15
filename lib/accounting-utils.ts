@@ -3506,76 +3506,82 @@ export class AccountingService {
   static async getHierarchicalAccountReport(startDate?: string, endDate?: string): Promise<AccountSummaryReport[]> {
     try {
       const allAccounts = await this.getAccountSummaryReport(startDate, endDate)
-      
-      // Helper function to calculate total from account and all its descendants
-      const calculateTotalBalance = (account: AccountSummaryReport): number => {
-        const ownBalance = account.current_balance || 0
-        const childrenBalance = account.sub_accounts?.reduce((sum, child) => sum + calculateTotalBalance(child), 0) || 0
-        return ownBalance + childrenBalance
-      }
-      
-      const calculateTotalOpeningBalance = (account: AccountSummaryReport): number => {
-        const ownBalance = account.opening_balance || 0
-        const childrenBalance = account.sub_accounts?.reduce((sum, child) => sum + calculateTotalOpeningBalance(child), 0) || 0
-        return ownBalance + childrenBalance
-      }
-      
-      const calculateTotalDebits = (account: AccountSummaryReport): number => {
-        const ownDebits = account.total_debits || 0
-        const childrenDebits = account.sub_accounts?.reduce((sum, child) => sum + calculateTotalDebits(child), 0) || 0
-        return ownDebits + childrenDebits
-      }
-      
-      const calculateTotalCredits = (account: AccountSummaryReport): number => {
-        const ownCredits = account.total_credits || 0
-        const childrenCredits = account.sub_accounts?.reduce((sum, child) => sum + calculateTotalCredits(child), 0) || 0
-        return ownCredits + childrenCredits
-      }
-      
-      const calculateTotalTransactions = (account: AccountSummaryReport): number => {
-        const ownTransactions = account.transaction_count || 0
-        const childrenTransactions = account.sub_accounts?.reduce((sum, child) => sum + calculateTotalTransactions(child), 0) || 0
-        return ownTransactions + childrenTransactions
-      }
-      
-      // Build hierarchical structure and calculate totals
-      const buildHierarchy = (accounts: AccountSummaryReport[], parentId: string | null = null): AccountSummaryReport[] => {
-        return accounts
-          .filter(account => account.parent_account_id === parentId)
-          .map(account => {
-            // First, recursively build children
-            const subAccounts = buildHierarchy(accounts, account.account_id)
-            
-            // Create account with sub-accounts
-            const accountWithChildren: AccountSummaryReport = {
-              ...account,
-              sub_accounts: subAccounts.length > 0 ? subAccounts : undefined,
-            }
-            
-            // If account has children, calculate totals including children
-            if (subAccounts && subAccounts.length > 0) {
-              const totalCurrentBalance = calculateTotalBalance(accountWithChildren)
-              const totalOpeningBalance = calculateTotalOpeningBalance(accountWithChildren)
-              const totalDebits = calculateTotalDebits(accountWithChildren)
-              const totalCredits = calculateTotalCredits(accountWithChildren)
-              const totalTransactions = calculateTotalTransactions(accountWithChildren)
-              
-              return {
-                ...accountWithChildren,
-                current_balance: totalCurrentBalance,
-                opening_balance: totalOpeningBalance,
-                total_debits: totalDebits,
-                total_credits: totalCredits,
-                net_change: totalCurrentBalance - totalOpeningBalance,
-                transaction_count: totalTransactions,
-              }
-            }
-            
-            return accountWithChildren
-          })
+
+      // ── FIX: pre-compute descendant sums from the ORIGINAL own-only values ──
+      // The previous implementation rolled up bottom-up and overwrote each
+      // child's total_debits/total_credits with own+children. When the parent
+      // then recursed through those mutated children, it counted grandchildren
+      // and below multiple times — which inflated a true $26.6M line total
+      // into $75M debits / $127M credits at the root.
+      //
+      // Build a parent→children map once, then for every account compute its
+      // aggregate as (own values of itself + own values of all descendants).
+      // Each leaf is counted exactly once at every ancestor — no double count.
+      const childrenMap = new Map<string | null, AccountSummaryReport[]>()
+      for (const acc of allAccounts) {
+        const key = acc.parent_account_id || null
+        const arr = childrenMap.get(key) || []
+        arr.push(acc)
+        childrenMap.set(key, arr)
       }
 
-      return buildHierarchy(allAccounts)
+      type Agg = {
+        current_balance: number
+        opening_balance: number
+        total_debits: number
+        total_credits: number
+        transaction_count: number
+      }
+
+      const aggregates = new Map<string, Agg>()
+      const computeAggregate = (account: AccountSummaryReport): Agg => {
+        if (aggregates.has(account.account_id)) return aggregates.get(account.account_id)!
+        const agg: Agg = {
+          current_balance:   account.current_balance   || 0,
+          opening_balance:   account.opening_balance   || 0,
+          total_debits:      account.total_debits      || 0,
+          total_credits:     account.total_credits     || 0,
+          transaction_count: account.transaction_count || 0,
+        }
+        const children = childrenMap.get(account.account_id) || []
+        for (const child of children) {
+          const c = computeAggregate(child)
+          agg.current_balance   += c.current_balance
+          agg.opening_balance   += c.opening_balance
+          agg.total_debits      += c.total_debits
+          agg.total_credits     += c.total_credits
+          agg.transaction_count += c.transaction_count
+        }
+        aggregates.set(account.account_id, agg)
+        return agg
+      }
+
+      // Prime aggregates for every account using their OWN values only.
+      for (const acc of allAccounts) computeAggregate(acc)
+
+      // Build hierarchical structure using the pre-computed aggregates.
+      const buildHierarchy = (parentId: string | null = null): AccountSummaryReport[] => {
+        const children = childrenMap.get(parentId) || []
+        return children.map(account => {
+          const subAccounts = buildHierarchy(account.account_id)
+          const agg = aggregates.get(account.account_id)!
+          const hasChildren = subAccounts.length > 0
+          return {
+            ...account,
+            sub_accounts: hasChildren ? subAccounts : undefined,
+            // Only rewrite to the aggregate if the account has children;
+            // leaf accounts keep their own values (which equal the aggregate).
+            current_balance:   agg.current_balance,
+            opening_balance:   agg.opening_balance,
+            total_debits:      agg.total_debits,
+            total_credits:     agg.total_credits,
+            net_change:        agg.current_balance - agg.opening_balance,
+            transaction_count: agg.transaction_count,
+          }
+        })
+      }
+
+      return buildHierarchy(null)
     } catch (error) {
       console.error("Error loading hierarchical account report:", error)
       throw new Error("Failed to load hierarchical account report")
