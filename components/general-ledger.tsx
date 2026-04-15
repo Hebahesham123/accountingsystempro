@@ -133,7 +133,8 @@ export default function GeneralLedger() {
       let runningBalance = 0
       const entriesWithBalance = data.map((entry: any) => {
         const selectedAccount = accounts.find((acc) => acc.id === selectedAccountId)
-        const isDebitAccount = selectedAccount?.account_type === "Asset" || selectedAccount?.account_type === "Expense"
+        const typeName = selectedAccount?.account_types?.name || selectedAccount?.account_type || ""
+        const isDebitAccount = ["Asset", "Assets", "Expense", "Expenses"].includes(typeName)
 
         if (isDebitAccount) {
           runningBalance += entry.debit_amount - entry.credit_amount

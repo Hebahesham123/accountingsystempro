@@ -92,7 +92,7 @@ export default function HomePage() {
         }
 
         setAccountSummaries(Array.from(typeMap.values()).sort((a, b) => {
-          const order = ['Asset', 'Liability', 'Equity', 'Revenue', 'Expense']
+          const order = ['Asset', 'Assets', 'Liability', 'Liabilities', 'Equity', 'Revenue', 'Expense', 'Expenses']
           return order.indexOf(a.type) - order.indexOf(b.type)
         }))
       } catch (error) {
@@ -269,10 +269,13 @@ export default function HomePage() {
               {accountSummaries.map((summary) => {
                 const colorMap: { [key: string]: { bg: string; text: string; border: string } } = {
                   Asset: { bg: 'bg-green-50', text: 'text-green-700', border: 'border-green-200' },
+                  Assets: { bg: 'bg-green-50', text: 'text-green-700', border: 'border-green-200' },
                   Liability: { bg: 'bg-red-50', text: 'text-red-700', border: 'border-red-200' },
+                  Liabilities: { bg: 'bg-red-50', text: 'text-red-700', border: 'border-red-200' },
                   Equity: { bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200' },
                   Revenue: { bg: 'bg-purple-50', text: 'text-purple-700', border: 'border-purple-200' },
                   Expense: { bg: 'bg-orange-50', text: 'text-orange-700', border: 'border-orange-200' },
+                  Expenses: { bg: 'bg-orange-50', text: 'text-orange-700', border: 'border-orange-200' },
                 }
                 const colors = colorMap[summary.type] || { bg: 'bg-gray-50', text: 'text-gray-700', border: 'border-gray-200' }
                 

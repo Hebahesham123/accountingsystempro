@@ -4,6 +4,21 @@ import { getCurrentUser } from "./auth-utils"
 
 export type { Account, AccountType, JournalEntry, JournalEntryLine }
 
+// Normalize account type names to singular form.
+// The database stores plural names ("Assets", "Liabilities", "Expenses")
+// but much of the codebase expects singular ("Asset", "Liability", "Expense").
+// This helper ensures consistent matching everywhere.
+function normalizeTypeName(name: string | undefined | null): string {
+  if (!name) return "Unknown"
+  const n = name.trim()
+  const map: Record<string, string> = {
+    "Assets": "Asset",
+    "Liabilities": "Liability",
+    "Expenses": "Expense",
+  }
+  return map[n] || n  // "Asset", "Liability", "Equity", "Revenue", "Expense" pass through unchanged
+}
+
 export type TrialBalanceItem = {
   account_id: string
   account_code: string
@@ -118,9 +133,10 @@ export class AccountingService {
           const bal = balances.get(account.id)
           const balance = bal ? bal.ownBalance : 0
 
-          if (typeName === "Assets") totalAssets += balance
-          else if (typeName === "Revenue") totalRevenue += balance
-          else if (typeName === "Expenses") totalExpenses += balance
+          const normalizedType = normalizeTypeName(typeName)
+          if (normalizedType === "Asset") totalAssets += balance
+          else if (normalizedType === "Revenue") totalRevenue += balance
+          else if (normalizedType === "Expense") totalExpenses += balance
         }
       }
 
@@ -2222,12 +2238,13 @@ export class AccountingService {
         }
       }
 
-      // Update the journal entry totals
+      // Update the journal entry totals using the SWAPPED values
+      // After reversal: what was debit is now credit and vice versa
       const { error: entryError } = await supabase
         .from("journal_entries")
         .update({
-          total_debit: lines.reduce((sum, line) => sum + line.credit_amount, 0),
-          total_credit: lines.reduce((sum, line) => sum + line.debit_amount, 0)
+          total_debit: updates.reduce((sum, u) => sum + u.debit_amount, 0),
+          total_credit: updates.reduce((sum, u) => sum + u.credit_amount, 0)
         })
         .eq("id", entryId)
 
@@ -2367,7 +2384,7 @@ export class AccountingService {
           account_id: account.id,
           account_code: account.code,
           account_name: account.name,
-          account_type: account.account_types?.name || "Unknown",
+          account_type: normalizeTypeName(account.account_types?.name),
           parent_account_id: account.parent_account_id,
           level: (account as { level?: number }).level ?? 1,
           opening_balance: openingBal,
@@ -2584,28 +2601,26 @@ export class AccountingService {
       const rootAccounts = accounts.filter(acc => !acc.parent_account_id)
       
       for (const account of rootAccounts) {
-        const accountTypeName = account.account_types?.name || "Unknown"
-        
+        const accountTypeName = normalizeTypeName(account.account_types?.name)
+
         // Skip if not a balance sheet account type
-        // Account types are singular: Asset, Liability, Equity
         if (accountTypeName !== "Asset" && accountTypeName !== "Liability" && accountTypeName !== "Equity") {
           continue
         }
-        
+
         // Get total balance (includes all children)
         const balanceInfo = balances.get(account.id)
         const totalBalance = balanceInfo?.totalBalance || 0
-        
+
         console.log(`Processing root account: ${account.code} - ${account.name}, Total Balance: ${totalBalance}`)
-        
-        // For balance sheet display, handle sign based on account type
-        // Liabilities and Equity have credit-normal balances (negative in our system)
-        // so we negate them for display (a credit balance of -5000 shows as 5000)
-        let displayAmount = totalBalance
-        if (accountTypeName === "Liability" || accountTypeName === "Equity") {
-          displayAmount = -totalBalance  // Negate (not abs) so errors still show as negative
-        }
-        
+
+        // getAllAccountBalances() already computes balances with correct signs:
+        //   - Debit-normal (Assets): debits - credits → positive means normal
+        //   - Credit-normal (Liabilities/Equity): credits - debits → positive means normal
+        // So ALL account types return positive numbers for normal balances.
+        // No sign negation needed — just use totalBalance directly.
+        const displayAmount = totalBalance
+
         const accountData = {
           name: account.name,
           amount: displayAmount,
@@ -2615,9 +2630,9 @@ export class AccountingService {
           has_children: accounts.some(a => a.parent_account_id === account.id),
           actualBalance: totalBalance
         }
-        
+
         console.log(`Adding ${accountTypeName} account: ${account.name} = ${accountData.amount}`)
-        
+
         if (accountTypeName === "Asset") {
           assets.push(accountData)
         } else if (accountTypeName === "Liability") {
@@ -2627,14 +2642,28 @@ export class AccountingService {
         }
       }
       
-      // Calculate Net Income from Income Statement (year to date)
+      // Calculate Net Income from Income Statement
+      // Use ALL-TIME income because this system has no year-end closing routine
+      // that rolls prior-year P&L into Retained Earnings. If we restricted to
+      // YTD, any Revenue/Expense activity from prior periods would be missing
+      // from Equity while still affecting Assets/Liabilities, causing the
+      // balance sheet to be off by exactly that prior-period net.
       let netIncome = 0
       try {
-        // Get Net Income from beginning of year to balance sheet date
-        const yearStart = new Date(new Date(asOfDate).getFullYear(), 0, 1).toISOString().split("T")[0]
-        const incomeStatement = await this.getIncomeStatement(yearStart, asOfDate)
+        // Find earliest journal entry date so we capture the full P&L history
+        const { data: earliestEntry } = await supabase
+          .from("journal_entries")
+          .select("entry_date")
+          .order("entry_date", { ascending: true })
+          .limit(1)
+          .maybeSingle()
+
+        const startDate = earliestEntry?.entry_date
+          || new Date(new Date(asOfDate).getFullYear(), 0, 1).toISOString().split("T")[0]
+
+        const incomeStatement = await this.getIncomeStatement(startDate, asOfDate)
         netIncome = incomeStatement.netIncome || incomeStatement.netProfit || 0
-        console.log(`Net Income (YTD): ${netIncome}`)
+        console.log(`Net Income (all-time from ${startDate}): ${netIncome}`)
       } catch (error) {
         console.warn("Error calculating Net Income for balance sheet:", error)
         // Continue with netIncome = 0
@@ -2802,7 +2831,7 @@ export class AccountingService {
       const taxes: any[] = []
 
       for (const account of rootAccounts) {
-        const accountType = account.account_types?.name || "Unknown"
+        const accountType = normalizeTypeName(account.account_types?.name)
         const accountName = account.name.toLowerCase()
 
         if (accountType !== "Revenue" && accountType !== "Expense") {
@@ -3060,37 +3089,37 @@ export class AccountingService {
       
       // Process accounts using the pre-calculated transaction totals
       for (const account of accounts) {
-        const accountType = account.account_types?.name || "Unknown"
+        const accountType = normalizeTypeName(account.account_types?.name)
         const cashFlowCategory = account.cash_flow_category
-        
+
         // Skip accounts without an explicit cash flow category (shouldn't happen due to filter, but safety check)
         if (!cashFlowCategory || !['operating', 'investing', 'financing'].includes(cashFlowCategory)) {
           continue
         }
-        
+
         // Get transaction totals for this account
         const totals = transactionsByAccount.get(account.id)
         if (!totals || (totals.debitTotal === 0 && totals.creditTotal === 0)) {
           continue
         }
-        
+
         const { debitTotal, creditTotal } = totals
-        
+
         // Calculate net cash flow based on account type
         // For cash flow statement, we track changes that affect cash
         let netCashFlow = 0
-        
+
         const accountName = account.name.toLowerCase()
-        const isCashAccount = (accountName.includes('cash') || accountName.includes('bank')) && 
-                              (accountType === "Asset" || accountType === "Assets")
-        
+        const isCashAccount = (accountName.includes('cash') || accountName.includes('bank')) &&
+                              accountType === "Asset"
+
         // Skip cash accounts themselves - they show the result, not the source of cash flows
         if (!isCashAccount) {
           // Calculate cash impact based on account type
-          if (accountType === "Asset" || accountType === "Assets") {
+          if (accountType === "Asset") {
             // Non-cash assets: increases (debits) = cash outflow, decreases (credits) = cash inflow
             netCashFlow = creditTotal - debitTotal
-          } else if (accountType === "Liability" || accountType === "Liabilities") {
+          } else if (accountType === "Liability") {
             // Liabilities: increases (credits) = cash inflow, decreases (debits) = cash outflow
             netCashFlow = creditTotal - debitTotal
           } else if (accountType === "Equity") {
@@ -3099,7 +3128,7 @@ export class AccountingService {
           } else if (accountType === "Revenue") {
             // Revenue: increases (credits) = cash inflow
             netCashFlow = creditTotal - debitTotal
-          } else if (accountType === "Expense" || accountType === "Expenses") {
+          } else if (accountType === "Expense") {
             // Expenses: increases (debits) = cash outflow
             netCashFlow = debitTotal - creditTotal
           }
