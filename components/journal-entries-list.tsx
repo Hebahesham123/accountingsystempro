@@ -16,6 +16,7 @@ import { supabase } from "@/lib/supabase"
 import Link from "next/link"
 import { getCurrentUser, canEditAccountingData } from "@/lib/auth-utils"
 import { useLanguage } from "@/lib/language-context"
+import { logActivity } from "@/lib/activity-log"
 
 // Standalone utility — computes actual balance from line data, never trusts the DB flag
 function computeIsBalanced(entry: any): boolean {
@@ -280,6 +281,15 @@ export default function JournalEntriesList() {
 
       console.log("Journal entry reversed successfully")
 
+      const reversed = entries.find((e) => e.id === entryId)
+      await logActivity({
+        action: "UPDATE",
+        entityType: "journal_entry",
+        entityId: entryId,
+        entityLabel: reversed?.entry_number ?? entryId,
+        details: { operation: "reverse" },
+      })
+
       toast({
         title: "Success",
         description: "Journal entry debit and credit amounts have been swapped",
@@ -323,6 +333,23 @@ export default function JournalEntriesList() {
         console.error("Error deleting journal entry:", entryError)
         throw new Error("Failed to delete journal entry")
       }
+
+      const deleted = entries.find((e) => e.id === entryId)
+      await logActivity({
+        action: "DELETE",
+        entityType: "journal_entry",
+        entityId: entryId,
+        entityLabel: deleted?.entry_number ?? entryId,
+        details: deleted
+          ? {
+              entry_number: deleted.entry_number,
+              entry_date: deleted.entry_date,
+              description: deleted.description,
+              total_debit: deleted.total_debit,
+              total_credit: deleted.total_credit,
+            }
+          : null,
+      })
 
       toast({
         title: "Success",
@@ -648,17 +675,28 @@ export default function JournalEntriesList() {
                       <TableCell className="max-w-[200px] truncate">
                         {entry.description || t("general.noDescription")}
                       </TableCell>
-                      <TableCell className="max-w-[200px]">
+                      <TableCell className="max-w-[260px]">
                         {entry.journal_entry_lines && entry.journal_entry_lines.length > 0 ? (
-                          <div className="flex flex-col gap-1">
+                          <div className="flex flex-col gap-1.5">
                             {entry.journal_entry_lines.slice(0, 3).map((line: any, idx: number) => {
                               // Handle account data - could be in accounts object or account property
                               const account = line.accounts || line.account || null
                               const accountName = account?.name || "Unknown Account"
+                              const lineDesc = (line.description || "").trim()
                               return (
-                                <span key={idx} className="text-sm truncate" title={accountName}>
-                                  {accountName}
-                                </span>
+                                <div key={idx} className="leading-tight">
+                                  <div className="text-sm truncate" title={accountName}>
+                                    {accountName}
+                                  </div>
+                                  {lineDesc && (
+                                    <div
+                                      className="text-xs text-muted-foreground italic truncate"
+                                      title={lineDesc}
+                                    >
+                                      {lineDesc}
+                                    </div>
+                                  )}
+                                </div>
                               )
                             })}
                             {entry.journal_entry_lines.length > 3 && (

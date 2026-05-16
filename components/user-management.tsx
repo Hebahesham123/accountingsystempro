@@ -33,6 +33,7 @@ import { useToast } from "@/hooks/use-toast"
 import { supabase } from "@/lib/supabase"
 import { type User as UserType, type UserRole } from "@/lib/auth-utils"
 import { useLanguage } from "@/lib/language-context"
+import { logActivity } from "@/lib/activity-log"
 
 export default function UserManagement() {
   const { language, t } = useLanguage()
@@ -131,13 +132,33 @@ export default function UserManagement() {
 
         if (error) throw error
 
+        await logActivity({
+          action: "UPDATE",
+          entityType: "user",
+          entityId: editingUser.id,
+          entityLabel: `${updateData.name} <${updateData.email}>`,
+          details: {
+            before: {
+              name: editingUser.name,
+              email: editingUser.email,
+              role: editingUser.role,
+            },
+            after: {
+              name: updateData.name,
+              email: updateData.email,
+              role: updateData.role,
+              pin_changed: !!updateData.pin,
+            },
+          },
+        })
+
         toast({
           title: "Success",
           description: "User updated successfully",
         })
       } else {
         // Create new user
-        const { error } = await supabase
+        const { data: created, error } = await supabase
           .from("users")
           .insert({
             name: userFormData.name.trim(),
@@ -145,8 +166,22 @@ export default function UserManagement() {
             role: userFormData.role,
             pin: userFormData.pin.trim(),
           })
+          .select()
+          .single()
 
         if (error) throw error
+
+        await logActivity({
+          action: "CREATE",
+          entityType: "user",
+          entityId: created?.id ?? null,
+          entityLabel: `${userFormData.name.trim()} <${userFormData.email.trim()}>`,
+          details: {
+            name: userFormData.name.trim(),
+            email: userFormData.email.trim(),
+            role: userFormData.role,
+          },
+        })
 
         toast({
           title: "Success",
@@ -175,6 +210,14 @@ export default function UserManagement() {
       const { error } = await supabase.from("users").delete().eq("id", user.id)
 
       if (error) throw error
+
+      await logActivity({
+        action: "DELETE",
+        entityType: "user",
+        entityId: user.id,
+        entityLabel: `${user.name} <${user.email}>`,
+        details: { name: user.name, email: user.email, role: user.role },
+      })
 
       toast({
         title: "Success",

@@ -14,6 +14,7 @@ import { AccountingService } from "@/lib/accounting-utils"
 import { getCurrentUser, isAdmin, isAccountant } from "@/lib/auth-utils"
 import { useRouter } from "next/navigation"
 import { useLanguage } from "@/lib/language-context"
+import { logActivity } from "@/lib/activity-log"
 
 export default function ProjectManagement() {
   const router = useRouter()
@@ -114,14 +115,31 @@ export default function ProjectManagement() {
           description: formData.description.trim() || undefined,
           is_active: true,
         })
+        await logActivity({
+          action: "UPDATE",
+          entityType: "project",
+          entityId: editingProject.id,
+          entityLabel: formData.name.trim(),
+          details: {
+            before: { name: editingProject.name, description: editingProject.description },
+            after: { name: formData.name.trim(), description: formData.description.trim() || null },
+          },
+        })
         toast({
           title: "Success",
           description: "Project updated successfully",
         })
       } else {
-        await AccountingService.createProject({
+        const created = await AccountingService.createProject({
           name: formData.name.trim(),
           description: formData.description.trim() || undefined,
+        })
+        await logActivity({
+          action: "CREATE",
+          entityType: "project",
+          entityId: (created as any)?.id ?? null,
+          entityLabel: formData.name.trim(),
+          details: { name: formData.name.trim(), description: formData.description.trim() || null },
         })
         toast({
           title: "Success",
@@ -147,7 +165,15 @@ export default function ProjectManagement() {
     }
 
     try {
+      const proj = projects.find((p: any) => p.id === projectId)
       await AccountingService.deleteProject(projectId)
+      await logActivity({
+        action: "DELETE",
+        entityType: "project",
+        entityId: projectId,
+        entityLabel: proj?.name ?? projectId,
+        details: proj ? { name: proj.name, description: proj.description } : null,
+      })
       toast({
         title: "Success",
         description: "Project deleted successfully",

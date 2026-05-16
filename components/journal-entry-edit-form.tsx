@@ -15,6 +15,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { type Account, AccountingService } from "@/lib/accounting-utils"
 import { useToast } from "@/hooks/use-toast"
+import { logActivity } from "@/lib/activity-log"
 import Link from "next/link"
 
 interface JournalLine {
@@ -457,6 +458,21 @@ export default function JournalEntryEditForm({ entry }: JournalEntryEditFormProp
         lines: entryLines,
       })
 
+      await logActivity({
+        action: "UPDATE",
+        entityType: "journal_entry",
+        entityId: entry.id,
+        entityLabel: entry.entry_number,
+        details: {
+          entry_number: entry.entry_number,
+          entry_date: formData.entry_date,
+          description: formData.description,
+          line_count: entryLines.length,
+          total_debit: entryLines.reduce((s, l) => s + (l.debit_amount || 0), 0),
+          total_credit: entryLines.reduce((s, l) => s + (l.credit_amount || 0), 0),
+        },
+      })
+
       toast({
         title: "Success",
         description: `Journal entry ${entry.entry_number} updated successfully`,
@@ -791,6 +807,18 @@ export default function JournalEntryEditForm({ entry }: JournalEntryEditFormProp
                             </SelectContent>
                           </Select>
                         </div>
+                      </div>
+
+                      {/* Line description */}
+                      <div className="mt-4 space-y-2">
+                        <Label htmlFor={`line-desc-${line.id}`}>Line Description</Label>
+                        <Textarea
+                          id={`line-desc-${line.id}`}
+                          rows={2}
+                          value={line.description}
+                          onChange={(e) => handleLineChange(line.id, "description", e.target.value)}
+                          placeholder="Optional — leave empty to use the entry's main description"
+                        />
                       </div>
 
                       {/* Image Upload Section */}

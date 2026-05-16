@@ -4,10 +4,10 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useTheme } from "next-themes"
 import { Button } from "@/components/ui/button"
-import { Calculator, FileText, TrendingUp, BookOpen, BarChart3, Home, Menu, ClipboardList, Users, Folder, ShoppingCart, Moon, Sun } from "lucide-react"
+import { Calculator, FileText, TrendingUp, BookOpen, BarChart3, Home, Menu, ClipboardList, Users, Folder, ShoppingCart, Moon, Sun, History } from "lucide-react"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
 import UserSelector from "@/components/user-selector"
-import { getCurrentUser, isAdmin, canViewAccountingData, isRegularUser } from "@/lib/auth-utils"
+import { getCurrentUser, isAdmin, isAccountant, canViewAccountingData, isRegularUser } from "@/lib/auth-utils"
 import { useLanguage } from "@/lib/language-context"
 
 export default function Navigation() {
@@ -107,6 +107,14 @@ export default function Navigation() {
               </Button>
             </div>
             <UserSelector />
+            {(isAdmin(getCurrentUser()) || isAccountant(getCurrentUser())) && (
+              <Link href="/activity-logs">
+                <Button variant={pathname === "/activity-logs" ? "default" : "ghost"} size="sm">
+                  <History className="h-4 w-4 mr-2" />
+                  {language === "ar" ? "السجلات" : "Logs"}
+                </Button>
+              </Link>
+            )}
             {isAdmin(getCurrentUser()) && (
               <Link href="/user-management">
                 <Button variant="ghost" size="sm">
@@ -155,6 +163,18 @@ export default function Navigation() {
                       </Link>
                     )
                   })}
+                  {(isAdmin(getCurrentUser()) || isAccountant(getCurrentUser())) && (
+                    <Link href="/activity-logs">
+                      <Button
+                        variant={pathname === "/activity-logs" ? "default" : "ghost"}
+                        size="sm"
+                        className="w-full justify-start gap-2"
+                      >
+                        <History className="h-4 w-4" />
+                        {language === "ar" ? "السجلات" : "Logs"}
+                      </Button>
+                    </Link>
+                  )}
                   {isAdmin(getCurrentUser()) && (
                     <Link href="/user-management">
                       <Button

@@ -18,6 +18,7 @@ import { useToast } from "@/hooks/use-toast"
 import { getCurrentUser, canEditAccountingData } from "@/lib/auth-utils"
 import { useRouter } from "next/navigation"
 import { useLanguage } from "@/lib/language-context"
+import { logActivity } from "@/lib/activity-log"
 
 interface JournalLine {
   id: string
@@ -574,11 +575,26 @@ export default function JournalEntryForm() {
         loadedAccountIds: accounts.map(a => a.id)
       })
       
-      await AccountingService.createJournalEntry({
+      const newEntryId = await AccountingService.createJournalEntry({
         entry_date: formData.entry_date,
         description: formData.description,
         created_by: currentUser?.id,
         lines: entryLines,
+      })
+
+      await logActivity({
+        action: "CREATE",
+        entityType: "journal_entry",
+        entityId: newEntryId,
+        entityLabel: entryNumber,
+        details: {
+          entry_number: entryNumber,
+          entry_date: formData.entry_date,
+          description: formData.description,
+          line_count: entryLines.length,
+          total_debit: entryLines.reduce((s, l) => s + (l.debit_amount || 0), 0),
+          total_credit: entryLines.reduce((s, l) => s + (l.credit_amount || 0), 0),
+        },
       })
 
       toast({
@@ -920,6 +936,24 @@ export default function JournalEntryForm() {
                             </SelectContent>
                           </Select>
                         </div>
+                      </div>
+
+                      {/* Line description */}
+                      <div className="mt-4 space-y-2">
+                        <Label htmlFor={`line-desc-${line.id}`}>
+                          {language === "ar" ? "وصف السطر" : "Line Description"}
+                        </Label>
+                        <Textarea
+                          id={`line-desc-${line.id}`}
+                          rows={2}
+                          value={line.description}
+                          onChange={(e) => handleLineChange(line.id, "description", e.target.value)}
+                          placeholder={
+                            language === "ar"
+                              ? "اختياري — يُترك فارغاً لاستخدام وصف القيد العام"
+                              : "Optional — leave empty to use the entry's main description"
+                          }
+                        />
                       </div>
 
                       {/* Image Upload Section */}

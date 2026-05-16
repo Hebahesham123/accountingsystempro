@@ -15,6 +15,7 @@ import { AccountingService } from "@/lib/accounting-utils"
 import { getCurrentUser, canEditAccountingData, isAdmin, canApprovePurchaseOrders, canCreatePurchaseOrders } from "@/lib/auth-utils"
 import { formatCurrency } from "@/lib/export-utils"
 import { useLanguage } from "@/lib/language-context"
+import { logActivity } from "@/lib/activity-log"
 
 interface PurchaseOrder {
   id: string
@@ -124,15 +125,38 @@ export default function PurchaseOrderManagement() {
           description: formData.description.trim() || undefined,
           image_data: formData.image_data || undefined,
         })
+        await logActivity({
+          action: "UPDATE",
+          entityType: "purchase_order",
+          entityId: editingPO.id,
+          entityLabel: editingPO.po_number,
+          details: {
+            before: { amount: editingPO.amount, description: editingPO.description },
+            after: {
+              amount: parseFloat(formData.amount),
+              description: formData.description.trim() || null,
+            },
+          },
+        })
         toast({
           title: t("general.success"),
           description: language === "ar" ? "تم تحديث أمر الشراء بنجاح" : "Purchase order updated successfully",
         })
       } else {
-        await AccountingService.createPurchaseOrder({
+        const created = await AccountingService.createPurchaseOrder({
           amount: parseFloat(formData.amount),
           description: formData.description.trim() || undefined,
           image_data: formData.image_data || undefined,
+        })
+        await logActivity({
+          action: "CREATE",
+          entityType: "purchase_order",
+          entityId: (created as any)?.id ?? null,
+          entityLabel: (created as any)?.po_number ?? null,
+          details: {
+            amount: parseFloat(formData.amount),
+            description: formData.description.trim() || null,
+          },
         })
         toast({
           title: t("general.success"),
@@ -199,6 +223,14 @@ export default function PurchaseOrderManagement() {
     }
     try {
       await AccountingService.approvePurchaseOrder(id, approvalType)
+      const po = purchaseOrders.find((p) => p.id === id)
+      await logActivity({
+        action: "UPDATE",
+        entityType: "purchase_order",
+        entityId: id,
+        entityLabel: po?.po_number ?? id,
+        details: { operation: "approve", approval_type: approvalType },
+      })
       toast({
         title: "Success",
         description: `Purchase order approved by ${roleName} successfully`,
@@ -234,6 +266,14 @@ export default function PurchaseOrderManagement() {
 
     try {
       await AccountingService.rejectPurchaseOrder(rejectingPOId, rejectionReason)
+      const po = purchaseOrders.find((p) => p.id === rejectingPOId)
+      await logActivity({
+        action: "UPDATE",
+        entityType: "purchase_order",
+        entityId: rejectingPOId,
+        entityLabel: po?.po_number ?? rejectingPOId,
+        details: { operation: "reject", reason: rejectionReason },
+      })
       toast({
         title: "Success",
         description: "Purchase order rejected successfully",
@@ -261,6 +301,14 @@ export default function PurchaseOrderManagement() {
     }
     try {
       await AccountingService.markSupplyDone(id)
+      const po = purchaseOrders.find((p) => p.id === id)
+      await logActivity({
+        action: "UPDATE",
+        entityType: "purchase_order",
+        entityId: id,
+        entityLabel: po?.po_number ?? id,
+        details: { operation: "supply_done" },
+      })
       toast({
         title: t("general.success"),
         description: language === "ar" ? "تم وضع علامة على أمر الشراء كتم التوريد بنجاح" : "Purchase order marked as supply done successfully",
@@ -284,7 +332,17 @@ export default function PurchaseOrderManagement() {
       return
     }
     try {
+      const po = purchaseOrders.find((p) => p.id === id)
       await AccountingService.deletePurchaseOrder(id)
+      await logActivity({
+        action: "DELETE",
+        entityType: "purchase_order",
+        entityId: id,
+        entityLabel: po?.po_number ?? id,
+        details: po
+          ? { po_number: po.po_number, amount: po.amount, status: po.status }
+          : null,
+      })
       toast({
         title: t("general.success"),
         description: language === "ar" ? "تم حذف أمر الشراء بنجاح" : "Purchase order deleted successfully",

@@ -259,22 +259,23 @@ export default function JournalEntryReview({ entry, onClose }: JournalEntryRevie
     rows.push(['Description', entry.description || '', '']);
     rows.push(['Reference', entry.reference || '', '']);
     rows.push([]);
-    rows.push(['Account Code', 'Account Name', 'Debit', 'Credit']);
-    
+    rows.push(['Account Code', 'Account Name', 'Line Description', 'Debit', 'Credit']);
+
     entry.journal_entry_lines?.forEach((line) => {
       const account = accountDetails.find(acc => acc.id === line.account_id);
       rows.push([
         account?.code || '',
         account?.name || '',
+        line.description || '',
         line.debit_amount ? formatCurrency(line.debit_amount) : '',
         line.credit_amount ? formatCurrency(line.credit_amount) : ''
       ]);
     });
-    
+
     rows.push([]);
     const totalDebit = entry.journal_entry_lines?.reduce((sum, line) => sum + (line.debit_amount || 0), 0) || 0;
     const totalCredit = entry.journal_entry_lines?.reduce((sum, line) => sum + (line.credit_amount || 0), 0) || 0;
-    rows.push(['Total', '', formatCurrency(totalDebit), formatCurrency(totalCredit)]);
+    rows.push(['Total', '', '', formatCurrency(totalDebit), formatCurrency(totalCredit)]);
     
     exportToCSVCustom(rows, `journal-entry-${entry.entry_number}`);
   };
@@ -388,6 +389,7 @@ export default function JournalEntryReview({ entry, onClose }: JournalEntryRevie
                             <TableRow>
                               <TableHead>Line #</TableHead>
                               <TableHead>Account</TableHead>
+                              <TableHead>Description</TableHead>
                               <TableHead>Account Type</TableHead>
                               <TableHead>Cash Flow</TableHead>
                               <TableHead className="text-right">Balance</TableHead>
@@ -416,6 +418,13 @@ export default function JournalEntryReview({ entry, onClose }: JournalEntryRevie
                                         </div>
                                       )}
                                     </div>
+                                  </TableCell>
+                                  <TableCell className="max-w-[260px]">
+                                    {line.description ? (
+                                      <span className="text-sm whitespace-pre-wrap">{line.description}</span>
+                                    ) : (
+                                      <span className="text-sm text-gray-400 italic">—</span>
+                                    )}
                                   </TableCell>
                                   <TableCell>
                                     {account?.account_types ? (

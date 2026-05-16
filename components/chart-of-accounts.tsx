@@ -37,6 +37,7 @@ import { type Account, type AccountType, AccountingService } from "@/lib/account
 import { useToast } from "@/hooks/use-toast"
 import { getCurrentUser, canEditAccountingData, isAdmin, canViewAccountingData } from "@/lib/auth-utils"
 import { useLanguage } from "@/lib/language-context"
+import { logActivity } from "@/lib/activity-log"
 
 export default function ChartOfAccounts() {
   const { language, t } = useLanguage()
@@ -71,6 +72,26 @@ export default function ChartOfAccounts() {
   useEffect(() => {
     loadData()
   }, [])
+
+  // Duplicate account-name detection. Account names must be globally unique
+  // so the accountant can't pick the wrong account when posting entries.
+  const trimmedNameLower = accountFormData.name.trim().toLowerCase()
+  const isDuplicateAccountName =
+    trimmedNameLower.length > 0 &&
+    accounts.some(
+      (a) =>
+        a.name.trim().toLowerCase() === trimmedNameLower &&
+        a.id !== editingAccount?.id
+    )
+
+  const trimmedTypeNameLower = accountTypeFormData.name.trim().toLowerCase()
+  const isDuplicateAccountTypeName =
+    trimmedTypeNameLower.length > 0 &&
+    accountTypes.some(
+      (t) =>
+        t.name.trim().toLowerCase() === trimmedTypeNameLower &&
+        t.id !== editingAccountType?.id
+    )
 
   const loadData = async () => {
     try {
@@ -144,6 +165,18 @@ export default function ChartOfAccounts() {
       return
     }
 
+    if (isDuplicateAccountName) {
+      toast({
+        title: language === "ar" ? "اسم الحساب مكرر" : "Duplicate Account Name",
+        description:
+          language === "ar"
+            ? "يوجد حساب آخر يحمل نفس الاسم. الرجاء اختيار اسم مختلف."
+            : "Another account already uses this name. Please choose a different name.",
+        variant: "destructive",
+      })
+      return
+    }
+
     // Validate account_type_id is a valid UUID, not a string name
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
     let validAccountTypeId = accountFormData.account_type_id
@@ -195,6 +228,24 @@ export default function ChartOfAccounts() {
         console.log("Updating account with data:", updateData)
         await AccountingService.updateAccount(editingAccount.id, updateData)
 
+        await logActivity({
+          action: "UPDATE",
+          entityType: "account",
+          entityId: editingAccount.id,
+          entityLabel: `${updateData.code || editingAccount.code} - ${updateData.name}`,
+          details: {
+            before: {
+              code: editingAccount.code,
+              name: editingAccount.name,
+              description: editingAccount.description,
+              parent_account_id: editingAccount.parent_account_id,
+              is_header: (editingAccount as any).is_header,
+              cash_flow_category: editingAccount.cash_flow_category,
+            },
+            after: updateData,
+          },
+        })
+
         toast({
           title: "Success",
           description: "Account updated successfully",
@@ -218,7 +269,15 @@ export default function ChartOfAccounts() {
         }
         
         console.log("Creating account with data:", accountData)
-        await AccountingService.createAccount(accountData)
+        const created = await AccountingService.createAccount(accountData)
+
+        await logActivity({
+          action: "CREATE",
+          entityType: "account",
+          entityId: created?.id ?? null,
+          entityLabel: `${created?.code ?? accountData.code ?? ""} - ${accountData.name}`,
+          details: accountData,
+        })
 
         toast({
           title: "Success",
@@ -267,6 +326,19 @@ export default function ChartOfAccounts() {
         await AccountingService.simpleDeleteAccount(account.id)
       }
 
+      await logActivity({
+        action: "DELETE",
+        entityType: "account",
+        entityId: account.id,
+        entityLabel: `${account.code} - ${account.name}`,
+        details: {
+          code: account.code,
+          name: account.name,
+          account_type: account.account_type,
+          parent_account_id: account.parent_account_id,
+        },
+      })
+
       toast({
         title: "Success",
         description: "Account deleted successfully",
@@ -295,6 +367,18 @@ export default function ChartOfAccounts() {
       return
     }
 
+    if (isDuplicateAccountTypeName) {
+      toast({
+        title: language === "ar" ? "اسم نوع الحساب مكرر" : "Duplicate Account Type Name",
+        description:
+          language === "ar"
+            ? "يوجد نوع حساب آخر يحمل نفس الاسم. الرجاء اختيار اسم مختلف."
+            : "Another account type already uses this name. Please choose a different name.",
+        variant: "destructive",
+      })
+      return
+    }
+
     try {
       setSaving(true)
 
@@ -314,6 +398,22 @@ export default function ChartOfAccounts() {
         
         await AccountingService.updateAccountType(editingAccountType.id, accountTypeUpdateData)
 
+        await logActivity({
+          action: "UPDATE",
+          entityType: "account_type",
+          entityId: editingAccountType.id,
+          entityLabel: accountTypeUpdateData.name,
+          details: {
+            before: {
+              name: editingAccountType.name,
+              description: editingAccountType.description,
+              normal_balance: editingAccountType.normal_balance,
+              cash_flow_category: editingAccountType.cash_flow_category,
+            },
+            after: accountTypeUpdateData,
+          },
+        })
+
         toast({
           title: "Success",
           description: "Account type updated successfully",
@@ -332,7 +432,15 @@ export default function ChartOfAccounts() {
           createData.cash_flow_category = null
         }
         
-        await AccountingService.createAccountType(createData)
+        const createdType = await AccountingService.createAccountType(createData)
+
+        await logActivity({
+          action: "CREATE",
+          entityType: "account_type",
+          entityId: (createdType as any)?.id ?? null,
+          entityLabel: createData.name,
+          details: createData,
+        })
 
         toast({
           title: "Success",
@@ -358,7 +466,18 @@ export default function ChartOfAccounts() {
     try {
       setSaving(true)
       await AccountingService.deleteAccountType(type.id)
-      
+
+      await logActivity({
+        action: "DELETE",
+        entityType: "account_type",
+        entityId: type.id,
+        entityLabel: type.name,
+        details: {
+          name: type.name,
+          normal_balance: type.normal_balance,
+        },
+      })
+
       toast({
         title: "Success",
         description: "Account type deleted successfully",
@@ -683,14 +802,40 @@ export default function ChartOfAccounts() {
                       </div>
 
                       <div className="space-y-2">
-                        <Label htmlFor="name">Account Name *</Label>
+                        <Label
+                          htmlFor="name"
+                          className={isDuplicateAccountName ? "text-red-600" : ""}
+                        >
+                          Account Name *
+                        </Label>
                         <Input
                           id="name"
                           value={accountFormData.name}
                           onChange={(e) => handleAccountInputChange("name", e.target.value)}
                           placeholder={t("coa.placeholderCash")}
                           required
+                          aria-invalid={isDuplicateAccountName}
+                          className={
+                            isDuplicateAccountName
+                              ? "border-red-500 focus-visible:ring-red-500 text-red-700"
+                              : ""
+                          }
                         />
+                        <p
+                          className={
+                            isDuplicateAccountName
+                              ? "text-xs font-medium text-red-600"
+                              : "text-xs text-muted-foreground"
+                          }
+                        >
+                          {isDuplicateAccountName
+                            ? language === "ar"
+                              ? "تنبيه: يوجد حساب آخر بنفس الاسم. الرجاء تغيير الاسم."
+                              : "Warning: another account already has this name. Please change it."
+                            : language === "ar"
+                              ? "ملاحظة: لا يمكن تكرار اسم الحساب أو أن يطابق اسم حساب آخر."
+                              : "Note: account names must be unique — duplicates are not allowed."}
+                        </p>
                       </div>
 
                       <div className="space-y-2">
@@ -771,7 +916,7 @@ export default function ChartOfAccounts() {
                         <Button type="button" variant="outline" onClick={() => setIsAccountDialogOpen(false)}>
                           {t("general.cancel")}
                         </Button>
-                        <Button type="submit" disabled={saving}>
+                        <Button type="submit" disabled={saving || isDuplicateAccountName}>
                           {saving ? t("general.saving") : editingAccount ? t("general.update") : t("general.create")} {language === "ar" ? "حساب" : "Account"}
                         </Button>
                       </DialogFooter>
@@ -824,14 +969,40 @@ export default function ChartOfAccounts() {
                     </DialogHeader>
                     <form onSubmit={handleAccountTypeSubmit} className="space-y-4">
                       <div className="space-y-2">
-                        <Label htmlFor="type_name">{t("general.accountTypeName")} *</Label>
+                        <Label
+                          htmlFor="type_name"
+                          className={isDuplicateAccountTypeName ? "text-red-600" : ""}
+                        >
+                          {t("general.accountTypeName")} *
+                        </Label>
                         <Input
                           id="type_name"
                           value={accountTypeFormData.name}
                           onChange={(e) => handleAccountTypeInputChange("name", e.target.value)}
                           placeholder="e.g., Current Asset, Fixed Asset, etc."
                           required
+                          aria-invalid={isDuplicateAccountTypeName}
+                          className={
+                            isDuplicateAccountTypeName
+                              ? "border-red-500 focus-visible:ring-red-500 text-red-700"
+                              : ""
+                          }
                         />
+                        <p
+                          className={
+                            isDuplicateAccountTypeName
+                              ? "text-xs font-medium text-red-600"
+                              : "text-xs text-muted-foreground"
+                          }
+                        >
+                          {isDuplicateAccountTypeName
+                            ? language === "ar"
+                              ? "تنبيه: يوجد نوع حساب آخر بنفس الاسم. الرجاء تغيير الاسم."
+                              : "Warning: another account type already has this name. Please change it."
+                            : language === "ar"
+                              ? "ملاحظة: لا يمكن تكرار اسم نوع الحساب."
+                              : "Note: account type names must be unique."}
+                        </p>
                       </div>
 
                       <div className="space-y-2">
@@ -902,7 +1073,7 @@ export default function ChartOfAccounts() {
                         <Button type="button" variant="outline" onClick={() => setIsAccountTypeDialogOpen(false)}>
                           {t("general.cancel")}
                         </Button>
-                        <Button type="submit" disabled={saving}>
+                        <Button type="submit" disabled={saving || isDuplicateAccountTypeName}>
                           {saving ? t("general.saving") : editingAccountType ? t("general.update") : t("general.create")} {language === "ar" ? "نوع الحساب" : "Account Type"}
                         </Button>
                       </DialogFooter>
