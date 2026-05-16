@@ -877,12 +877,11 @@ export class AccountingService {
         throw new Error("Account cannot be deleted because it has transactions or sub-accounts")
       }
 
-      console.log("Account is safe to delete, performing soft delete...")
+      console.log("Account is safe to delete, performing hard delete...")
 
-      // Soft delete the account
       const { error } = await supabase
         .from("accounts")
-        .update({ is_active: false })
+        .delete()
         .eq("id", accountId)
 
       if (error) {
@@ -901,11 +900,10 @@ export class AccountingService {
   static async simpleDeleteAccount(accountId: string): Promise<void> {
     try {
       console.log("Using simple delete for account:", accountId)
-      
-      // Just try to soft delete the account directly
+
       const { error } = await supabase
         .from("accounts")
-        .update({ is_active: false })
+        .delete()
         .eq("id", accountId)
 
       if (error) {
@@ -3292,15 +3290,70 @@ export class AccountingService {
 
       console.log("Account found:", account)
 
-      // Get opening balance (you might want to implement this based on your business logic)
-      const openingBalance = 0 // This should be calculated based on your opening balance logic
-
       // Determine if this account has debit normal balance
       const isDebitNormal = account.account_types?.normal_balance === "debit"
 
       console.log(`Account type: ${account.account_type}, Normal balance: ${account.account_types?.normal_balance}, Is debit normal: ${isDebitNormal}`)
 
-      // Get all transactions for this account
+      // ── FIX #3: Collect this account + all sub-account IDs ──────────
+      const { data: subAccounts, error: subAccountsError } = await supabase
+        .from("accounts")
+        .select("*, account_types(*)")
+        .eq("parent_account_id", accountId)
+        .order("code")
+
+      if (subAccountsError) {
+        console.warn("Error fetching sub-accounts:", subAccountsError)
+      }
+
+      const subIds = (subAccounts || []).map((s: any) => s.id)
+      // All account IDs whose transactions should be included in the parent report
+      const allAccountIds = [accountId, ...subIds]
+
+      console.log(`Found ${subAccounts?.length || 0} sub-accounts for account ${account.code}`)
+
+      // ── FIX #1: Compute real opening balance ───────────────────────
+      // Opening balance = opening_balances table value + all transactions
+      // before startDate (for this account AND its sub-accounts)
+      let openingBalance = 0
+
+      // 1a) Get stored opening balance from opening_balances table
+      const { data: obRows } = await supabase
+        .from("opening_balances")
+        .select("balance, balance_type")
+        .in("account_id", allAccountIds)
+
+      if (obRows && obRows.length > 0) {
+        for (const ob of obRows) {
+          const bal = safeNumber(ob.balance)
+          if (isDebitNormal) {
+            openingBalance += ob.balance_type === "debit" ? bal : -bal
+          } else {
+            openingBalance += ob.balance_type === "credit" ? bal : -bal
+          }
+        }
+      }
+
+      // 1b) Add all transactions BEFORE the start date to the opening balance
+      if (startDate) {
+        const { data: prePeriodTx } = await supabase
+          .from("journal_entry_lines")
+          .select(`
+            debit_amount,
+            credit_amount,
+            journal_entries!inner(entry_date)
+          `)
+          .in("account_id", allAccountIds)
+          .lt("journal_entries.entry_date", startDate)
+
+        for (const t of prePeriodTx || []) {
+          const d = safeNumber(t.debit_amount), c = safeNumber(t.credit_amount)
+          openingBalance += isDebitNormal ? d - c : c - d
+        }
+      }
+
+      // ── FIX #2 + #3: Get transactions for this account AND sub-accounts,
+      // ordered by entry_date then entry_number ───────────────────────
       let query = supabase
         .from("journal_entry_lines")
         .select(`
@@ -3310,10 +3363,10 @@ export class AccountingService {
             entry_number,
             description,
             reference
-          )
+          ),
+          accounts!inner(code, name)
         `)
-        .eq("account_id", accountId)
-        .order("created_at")
+        .in("account_id", allAccountIds)
 
       if (startDate && endDate) {
         query = query
@@ -3328,14 +3381,27 @@ export class AccountingService {
         throw transactionsError
       }
 
-      console.log(`Found ${transactions?.length || 0} transactions for account ${account.code}`)
+      // Sort in JS as a safety net (Supabase nested ordering can be unreliable)
+      const sortedTransactions = (transactions || []).sort((a: any, b: any) => {
+        const dateA = a.journal_entries.entry_date
+        const dateB = b.journal_entries.entry_date
+        if (dateA < dateB) return -1
+        if (dateA > dateB) return 1
+        const numA = a.journal_entries.entry_number || 0
+        const numB = b.journal_entries.entry_number || 0
+        if (numA < numB) return -1
+        if (numA > numB) return 1
+        return (a.line_number || 0) - (b.line_number || 0)
+      })
+
+      console.log(`Found ${sortedTransactions.length} transactions for account ${account.code} (including sub-accounts)`)
 
       // Calculate running balances and summary
       let runningBalance = openingBalance
-      const processedTransactions = (transactions || []).map((transaction) => {
-        const debitAmount = transaction.debit_amount || 0
-        const creditAmount = transaction.credit_amount || 0
-        
+      const processedTransactions = sortedTransactions.map((transaction: any) => {
+        const debitAmount = safeNumber(transaction.debit_amount)
+        const creditAmount = safeNumber(transaction.credit_amount)
+
         // For asset/expense accounts, debits increase balance, credits decrease
         // For liability/equity/revenue accounts, credits increase balance, debits decrease
         if (isDebitNormal) {
@@ -3352,64 +3418,58 @@ export class AccountingService {
           reference: transaction.journal_entries.reference,
           debit_amount: debitAmount,
           credit_amount: creditAmount,
-          running_balance: runningBalance,
+          running_balance: Math.round(runningBalance * 100) / 100,
+          account_code: transaction.accounts?.code,
+          account_name: transaction.accounts?.name,
         }
       })
 
-      const totalDebits = processedTransactions.reduce((sum, t) => sum + t.debit_amount, 0)
-      const totalCredits = processedTransactions.reduce((sum, t) => sum + t.credit_amount, 0)
+      const totalDebits = Math.round(processedTransactions.reduce((sum: number, t: any) => sum + t.debit_amount, 0) * 100) / 100
+      const totalCredits = Math.round(processedTransactions.reduce((sum: number, t: any) => sum + t.credit_amount, 0) * 100) / 100
       const netChange = isDebitNormal ? totalDebits - totalCredits : totalCredits - totalDebits
 
       console.log(`Account ${account.code} summary: Debits: ${totalDebits}, Credits: ${totalCredits}, Net: ${netChange}, Balance: ${runningBalance}`)
 
-      // Get sub-accounts if any — fetch in one query (no recursive N+1)
-      const { data: subAccounts, error: subAccountsError } = await supabase
-        .from("accounts")
-        .select("*, account_types(*)")
-        .eq("parent_account_id", accountId)
-        .order("code")
-
-      if (subAccountsError) {
-        console.warn("Error fetching sub-accounts:", subAccountsError)
-      }
-
-      console.log(`Found ${subAccounts?.length || 0} sub-accounts for account ${account.code}`)
-
-      // Build lightweight sub-account summaries using already-fetched shared entry data
-      // instead of making a full recursive DB call per child (N+1 fix)
+      // Build lightweight sub-account summaries
       let subAccountReports: AccountDetailReport[] = []
       if (subAccounts && subAccounts.length > 0) {
-        const subIds = subAccounts.map((s: any) => s.id)
-        // Batch-fetch all lines for sub-accounts in one query
-        const subLinesQ = supabase
-          .from("journal_entry_lines")
-          .select(`*, journal_entries!inner(entry_date, entry_number, description, reference)`)
-          .in("account_id", subIds)
-          .order("created_at")
-        if (startDate && endDate) {
-          subLinesQ.gte("journal_entries.entry_date", startDate).lte("journal_entries.entry_date", endDate)
-        }
-        const { data: allSubLines } = await subLinesQ
-
         for (const subAcc of subAccounts) {
-          const subLines = (allSubLines || []).filter((l: any) => l.account_id === subAcc.id)
+          const subLines = sortedTransactions.filter((l: any) => l.account_id === subAcc.id)
           const subIsDebit = subAcc.account_types?.normal_balance === "debit"
-          let subRunning = 0
+
+          // Sub-account opening balance
+          let subOpeningBal = 0
+          const { data: subObRow } = await supabase
+            .from("opening_balances")
+            .select("balance, balance_type")
+            .eq("account_id", subAcc.id)
+            .single()
+          if (subObRow) {
+            const bal = safeNumber(subObRow.balance)
+            subOpeningBal = subIsDebit
+              ? (subObRow.balance_type === "debit" ? bal : -bal)
+              : (subObRow.balance_type === "credit" ? bal : -bal)
+          }
+
+          let subRunning = subOpeningBal
           const subTx = subLines.map((t: any) => {
             const d = safeNumber(t.debit_amount), c = safeNumber(t.credit_amount)
             subRunning += subIsDebit ? d - c : c - d
             return { id: t.id, entry_date: t.journal_entries.entry_date, entry_number: t.journal_entries.entry_number,
-                     description: t.description || t.journal_entries.description, debit_amount: d, credit_amount: c, running_balance: subRunning }
+                     description: t.description || t.journal_entries.description, debit_amount: d, credit_amount: c,
+                     running_balance: Math.round(subRunning * 100) / 100 }
           })
+          const subDebits = Math.round(subTx.reduce((s: number, t: any) => s + t.debit_amount, 0) * 100) / 100
+          const subCredits = Math.round(subTx.reduce((s: number, t: any) => s + t.credit_amount, 0) * 100) / 100
           subAccountReports.push({
             account: subAcc,
-            opening_balance: 0,
-            current_balance: subRunning,
+            opening_balance: subOpeningBal,
+            current_balance: Math.round(subRunning * 100) / 100,
             transactions: subTx,
             summary: {
-              total_debits:      subTx.reduce((s: number, t: any) => s + t.debit_amount, 0),
-              total_credits:     subTx.reduce((s: number, t: any) => s + t.credit_amount, 0),
-              net_change:        subRunning,
+              total_debits:      subDebits,
+              total_credits:     subCredits,
+              net_change:        subIsDebit ? subDebits - subCredits : subCredits - subDebits,
               transaction_count: subTx.length,
             },
           })
@@ -3418,13 +3478,13 @@ export class AccountingService {
 
       return {
         account,
-        opening_balance: openingBalance,
-        current_balance: runningBalance,
+        opening_balance: Math.round(openingBalance * 100) / 100,
+        current_balance: Math.round(runningBalance * 100) / 100,
         transactions: processedTransactions,
         summary: {
           total_debits: totalDebits,
           total_credits: totalCredits,
-          net_change: netChange,
+          net_change: Math.round(netChange * 100) / 100,
           transaction_count: processedTransactions.length,
         },
         sub_accounts: subAccountReports.length > 0 ? subAccountReports : undefined,
